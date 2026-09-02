@@ -58,6 +58,7 @@ SAFE_PREFIXES: tuple[str, ...] = (
     "format-table", "format-list", "ft ", "fl ", "out-string", "convertto-json",
     "git status", "git log", "git diff", "git branch", "git remote",
     "python --version", "python -v", "pip list", "pip show", "node -v", "npm list",
+    "claude", "claude -p", "claude --version", "agy", "agy run", "agy chat",
     "where", "which", "get-command", "measure-object", "select-string", "findstr",
     "help", "man", "get-help", "clear", "cls",
 )
