@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Agent — Autonomous Local AI Command Center</title>
+  
+  <!-- Modern Typography Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Ambient Cosmic Mesh Gradient -->
+  <div class="app-bg"></div>
+
+  <div class="app-root">
+    <!-- ====================================================================
+         TOP SYSTEM BAR / HEADER
+         ==================================================================== -->
+    <header class="header-bar" role="banner">
+      <div class="brand-section">
+        <div class="brand-mark">
+          <div class="brand-icon-pulse"></div>
+          <span>Voice Agent</span>
+        </div>
+        <span class="brand-version">v2.4</span>
+        <div class="local-badge" title="All reasoning and execution happens locally on your machine">
+          <div class="local-badge-dot"></div>
+          <span>LOCAL AI</span>
+        </div>
+      </div>
+
+      <!-- Live Subsystem Health Indicators -->
+      <div class="system-pills" role="status" aria-label="System status indicators">
+        <div class="sys-pill" id="pillModel" title="Local Ollama Model">
+          <span class="sys-dot" id="dotOllama"></span>
+          <span id="pillModelName">gemma4:31b</span>
+        </div>
+        <div class="sys-pill" id="pillWhisper" title="Faster-Whisper Offline STT">
+          <span class="sys-dot"></span>
+          <span id="pillWhisperName">base.en</span>
+        </div>
+        <div class="sys-pill" id="pillVoice" title="Active Neural Voice Engine">
+          <span class="sys-dot"></span>
+          <span id="pillVoiceName">Piper</span>
+        </div>
+        <div class="sys-pill" id="pillShell" title="Windows Execution Shell">
+          <span class="sys-dot"></span>
+          <span id="pillShellName">PowerShell</span>
+        </div>
+      </div>
+
+      <!-- Header Action Controls -->
+      <div class="header-actions">
+        <button class="icon-btn" id="btnToggleContinuous" title="Continuous Listening: Paused" aria-label="Toggle Continuous Listening">
+          <span class="sys-dot" id="continuousDot" style="background: var(--text-muted);"></span>
+        </button>
+
+        <button class="icon-btn" id="btnToggleScreenMirror" title="Live Laptop Screen Mirror (Ctrl+M)" aria-label="Toggle Screen Mirror">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+        </button>
+
+        <button class="icon-btn" id="btnOpenMobileConnect" title="Connect Phone / Mobile Companion" aria-label="Phone Connect">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+        </button>
+
+        <button class="icon-btn danger-btn" id="btnStopInterrupt" title="Interrupt / Stop (Escape)" aria-label="Stop Execution" style="display: none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+          </svg>
+        </button>
+
+        <button class="icon-btn" id="btnOpenTimeline" title="Activity Timeline (Ctrl+T)" aria-label="Open Timeline">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </button>
+
+        <button class="icon-btn" id="btnOpenHistory" title="History (Ctrl+H)" aria-label="Open Conversation History">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </button>
+
+        <button class="icon-btn" id="btnOpenSettings" title="Settings (Ctrl+,)" aria-label="Open Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ====================================================================
+         HERO VOICE INTERACTION STAGE
+         ==================================================================== -->
+    <main class="main-stage" role="main">
+      <div class="hero-voice-container">
+        <!-- Voice State Badge -->
+        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status">
+          <div class="state-dot-indicator"></div>
+          <span id="voiceStateText">READY</span>
+        </div>
+
+        <!-- Central Voice Orb (Canvas Hero) -->
+        <div class="orb-wrapper" id="orbWrapper" title="Click to speak or toggle listening" tabindex="0" role="button" aria-label="Microphone Voice Orb">
+          <canvas id="orbCanvas"></canvas>
+          <div class="orb-center-action">
+            <svg class="orb-center-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <span class="orb-center-label" id="orbCenterLabel">Press to Talk</span>
+          </div>
+        </div>
+
+        <!-- 32-Band Audio Reactive Spectrum Bar -->
+        <div class="visualizer-strip" id="visualizerStrip" aria-hidden="true"></div>
+
+        <!-- Speech Stage & Conversation Display -->
+        <div class="speech-stage">
+          <div class="user-utterance is-placeholder" id="userUtterance">
+            Ready when you are. Say "Open Antigravity CLI" or click the orb.
+          </div>
+
+          <!-- Spoken Reply Box -->
+          <div class="agent-response-box" id="agentResponseBox" style="display: none;">
+            <div class="agent-avatar-mini">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+            </div>
+            <div class="agent-response-text" id="agentResponseText"></div>
+            <div class="response-actions">
+              <button class="mini-icon-btn" id="btnReplayResponse" title="Read aloud again">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+              </button>
+              <button class="mini-icon-btn" id="btnCopyResponse" title="Copy text">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tool Execution & Progressive Disclosure Card -->
+          <div class="tool-action-card" id="toolActionCard" style="display: none;">
+            <div class="tool-action-header" id="toolActionHeader" title="Click to view console logs">
+              <div class="tool-info-left">
+                <div class="tool-icon-wrap">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 17 10 11 4 5"></polyline>
+                    <line x1="12" y1="19" x2="20" y2="19"></line>
+                  </svg>
+                </div>
+                <div>
+                  <div class="tool-meta-title" id="toolTitle">run_command</div>
+                  <div class="tool-meta-purpose" id="toolPurpose">Executing local process...</div>
+                </div>
+              </div>
+              <div class="tool-info-right">
+                <span class="risk-pill low" id="toolRiskPill">LOW RISK</span>
+                <span class="tool-status-badge running" id="toolStatusBadge">Running...</span>
+              </div>
+            </div>
+
+            <!-- Expandable Terminal Output Block -->
+            <div class="tool-console-panel" id="toolConsolePanel">
+              <div class="console-cmd-line">
+                <span id="toolCommandText">agy -p --dangerously-skip-permissions "inspect"</span>
+                <span style="font-size: 11px; color: var(--text-muted);">PowerShell 7</span>
+              </div>
+              <div class="console-output-block" id="consoleOutput">Starting execution...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Controls & Quick Input Bar -->
+        <div class="controls-stage">
+          <div class="primary-voice-controls">
+            <button class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold Spacebar to Talk">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <span>Hold [Space] to Talk</span>
+            </button>
+          </div>
+
+          <!-- Quick Text Input Bar -->
+          <form class="input-prompt-bar" id="formPrompt" role="search">
+            <input type="text" class="input-prompt-field" id="inputPrompt" placeholder="Type a prompt or command... (Ctrl+K)" autocomplete="off">
+            <button type="submit" class="input-submit-btn" title="Send (Enter)" aria-label="Send">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+
+          <!-- Interactive Starter Chips -->
+          <div class="empty-state-section">
+            <div class="starter-chips-row">
+              <button class="starter-chip" data-prompt="Open Antigravity CLI">⚡ Open Antigravity CLI</button>
+              <button class="starter-chip" data-prompt="Show running processes">💻 Show running processes</button>
+              <button class="starter-chip" data-prompt="Check free disk space">💾 Check free disk space</button>
+              <button class="starter-chip" data-prompt="What is my IP address?">🌐 What is my IP address?</button>
+              <button class="starter-chip" data-prompt="List files in current folder">📁 List files in project</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ====================================================================
+         SAFETY CONFIRMATION MODAL (FIRST CLASS TRUST UX)
+         ==================================================================== -->
+    <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="confirmation-card">
+        <div class="confirmation-header">
+          <div class="confirm-icon-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div class="confirm-title-block">
+            <h3 id="confirmTitle">Authorization Required</h3>
+            <p>Agent proposes executing a command on your Windows system.</p>
+          </div>
+        </div>
+
+        <div class="confirmation-body">
+          <div class="confirm-command-box" id="confirmCmdText">Start-Process powershell</div>
+          <div class="confirm-grid">
+            <div class="confirm-grid-item">
+              <div class="confirm-grid-label">Risk Level</div>
+              <div class="confirm-grid-val" id="confirmRiskVal">MEDIUM</div>
+            </div>
+            <div class="confirm-grid-item">
+              <div class="confirm-grid-label">Reversible?</div>
+              <div class="confirm-grid-val" id="confirmReversibleVal">No</div>
+            </div>
+            <div class="confirm-grid-item">
+              <div class="confirm-grid-label">Target System</div>
+              <div class="confirm-grid-val" id="confirmCategoryVal">Process Runner</div>
+            </div>
+            <div class="confirm-grid-item">
+              <div class="confirm-grid-label">Location</div>
+              <div class="confirm-grid-val" id="confirmAffectedVal">Current Workspace</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="confirmation-actions">
+          <button class="btn-secondary" id="btnConfirmDecline">Decline (Esc)</button>
+          <button class="btn-primary-confirm" id="btnConfirmApprove">Authorize & Run (Enter)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         CONVERSATION & COMMAND HISTORY DRAWER
+         ==================================================================== -->
+    <aside class="drawer-panel left-drawer" id="historyDrawer" aria-label="Conversation History">
+      <div class="drawer-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <h3>Command History</h3>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button class="icon-btn" id="btnClearHistory" title="Clear History (Ctrl+L)" aria-label="Clear History">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btnCloseHistory" title="Hide History (Ctrl+H or Esc)" aria-label="Hide History">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="drawer-content" id="historyContent"></div>
+    </aside>
+
+    <!-- ====================================================================
+         LIVE ACTIVITY TIMELINE DRAWER (ANCHORED TO RIGHT)
+         ==================================================================== -->
+    <aside class="drawer-panel right-drawer" id="timelineDrawer" aria-label="Activity Timeline">
+      <div class="drawer-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="brand-icon-pulse" style="width: 8px; height: 8px;"></div>
+          <h3>Activity Stream</h3>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button class="icon-btn" id="btnClearTimeline" title="Clear Activity Stream" aria-label="Clear Activity Stream">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btnCloseTimeline" title="Hide Activity Stream (Ctrl+T or Esc)" aria-label="Hide Activity Stream">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="drawer-content" id="timelineContent"></div>
+    </aside>
+
+    <!-- ====================================================================
+         LIVE 60 FPS WEBRTC SCREEN MIRROR OVERLAY (PHONE & DESKTOP)
+         ==================================================================== -->
+    <div class="screen-mirror-overlay" id="screenMirrorOverlay" style="display: none;">
+      <!-- Screen Toolbar -->
+      <div class="screen-mirror-toolbar">
+        <div class="screen-toolbar-left">
+          <div class="screen-live-badge">
+            <span class="live-pulse-dot"></span>
+            <span>60 FPS WEBRTC</span>
+          </div>
+          <span class="screen-stat-pill" id="screenFpsPill">60 FPS (Low Latency)</span>
+          <span class="screen-audio-pill" id="screenAudioPill">
+            <span class="mic-dot-live"></span>
+            <span>PHONE MIC: LIVE</span>
+          </span>
+        </div>
+
+        <div class="screen-toolbar-right">
+          <button class="screen-tool-btn" id="btnToggleTouchClicks" title="Toggle Remote Touch-Clicks on Laptop">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            </svg>
+            <span id="touchClickLabel">Touch Clicks: ON</span>
+          </button>
+
+          <button class="screen-tool-btn" id="btnScreenFullscreen" title="Toggle Fullscreen">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+          </button>
+
+          <button class="screen-tool-btn danger" id="btnCloseScreenMirror" title="Close Screen Mirror (Esc)">✕</button>
+        </div>
+      </div>
+
+      <!-- Screen Viewport & WebRTC Hardware Video -->
+      <div class="screen-viewport-wrap" id="screenViewportWrap">
+        <video id="screenStreamVideo" class="screen-stream-video" autoplay playsinline muted></video>
+        <img id="screenStreamImg" class="screen-stream-img" alt="Laptop Display Live Mirror" style="display: none;">
+        <div class="screen-click-ripple" id="screenClickRipple"></div>
+      </div>
+
+      <!-- Floating Remote Dictation Bar (Thumb-Friendly on Phone) -->
+      <div class="screen-floating-dictate-bar">
+        <button class="btn-mobile-dictate" id="btnScreenDictate" aria-label="Hold to Dictate to Laptop Voice Agent">
+          <div class="dictate-icon-pulse">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </div>
+          <span id="screenDictateLabel">Hold or Speak to Dictate</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         MOBILE CONNECT / QR CODE MODAL
+         ==================================================================== -->
+    <div class="modal-overlay" id="mobileConnectModal" role="dialog" aria-modal="true" aria-labelledby="mobileModalTitle">
+      <div class="mobile-connect-card">
+        <div class="settings-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="brand-icon-pulse" style="width: 10px; height: 10px;"></div>
+            <h3 id="mobileModalTitle">Access from Your Phone</h3>
+          </div>
+          <button class="icon-btn" id="btnCloseMobileConnect" title="Close">✕</button>
+        </div>
+
+        <div class="mobile-connect-body">
+          <p class="mobile-instructions">
+            Scan this QR code with your phone camera or open the link below on your phone to view your laptop screen at <strong>60 FPS</strong> and speak directly to your voice agent.
+          </p>
+
+          <!-- QR Code Container -->
+          <div class="qr-code-wrapper">
+            <img id="mobileQrImg" class="qr-code-img" src="" alt="Mobile Connection QR Code">
+          </div>
+
+          <div class="mobile-url-box">
+            <span class="mobile-url-text" id="mobileUrlDisplay">http://192.168.1.10:8000</span>
+            <button class="btn-secondary" id="btnCopyMobileUrl" style="padding: 6px 12px; font-size: 12px;">Copy</button>
+          </div>
+
+          <div class="mobile-tips-list">
+            <div class="mobile-tip-item">
+              <span class="tip-num">1</span>
+              <span><strong>Built-in 60 FPS Screen</strong>: Tap <strong>🖥️ Screen</strong> for buttery smooth WebRTC screen mirroring + phone mic in one app.</span>
+            </div>
+            <div class="mobile-tip-item">
+              <span class="tip-num">2</span>
+              <span><strong>Using Chrome Remote Desktop?</strong> Keep this tab open on your phone with mic enabled; you can speak commands naturally while using Chrome Remote Desktop!</span>
+            </div>
+            <div class="mobile-tip-item">
+              <span class="tip-num">3</span>
+              <span><strong>Touch Clicks</strong>: Tap anywhere on the mirrored screen to click on your laptop.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         SETTINGS MODAL
+         ==================================================================== -->
+    <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="settings-card">
+        <div class="settings-header">
+          <h3 id="settingsTitle">Agent Settings & Diagnostics</h3>
+          <button class="icon-btn" id="btnCloseSettings" title="Close">✕</button>
+        </div>
+        <div class="settings-body">
+          <div class="form-group">
+            <label class="form-label" for="settingModel">Ollama Intelligence Model</label>
+            <span class="form-sublabel">Local tool-calling model running on Ollama</span>
+            <select class="form-select" id="settingModel"></select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="settingTtsBackend">Text-to-Speech Engine</label>
+            <span class="form-sublabel">Piper (offline neural), Edge (online natural), or SAPI (robotic)</span>
+            <select class="form-select" id="settingTtsBackend">
+              <option value="auto">Auto (Piper → Edge → SAPI)</option>
+              <option value="piper">Piper (Offline Neural)</option>
+              <option value="edge">Microsoft Edge (Online Ultra-Natural)</option>
+              <option value="sapi">Windows SAPI (Instant Built-in)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="settingVoice">Spoken Voice</label>
+              <button class="btn-secondary" id="btnTestVoice" style="padding: 4px 10px; font-size: 11px;">Test Voice</button>
+            </div>
+            <select class="form-select" id="settingVoice"></select>
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" for="settingRate">Speaking Rate</label>
+              <span class="form-sublabel" id="rateValueDisplay">185 wpm</span>
+            </div>
+            <input type="range" class="form-range" id="settingRate" min="130" max="230" value="185">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="settingConfirmMode">Safety Confirmation Gate</label>
+            <span class="form-sublabel">How potentially risky commands are approved</span>
+            <select class="form-select" id="settingConfirmMode">
+              <option value="terminal">Interactive UI / Terminal Prompt</option>
+              <option value="voice">Spoken Voice (Say Yes/No)</option>
+              <option value="auto">Auto-Approve (Unrestricted)</option>
+              <option value="deny">Always Deny (Read-only)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="settingShell">Default Windows Shell</label>
+            <select class="form-select" id="settingShell">
+              <option value="powershell">PowerShell 7</option>
+              <option value="cmd">Command Prompt (cmd.exe)</option>
+            </select>
+          </div>
+        </div>
+        <div class="confirmation-actions">
+          <button class="btn-primary-confirm" id="btnSaveSettings">Save Preferences</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/orb.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

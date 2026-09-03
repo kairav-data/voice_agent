@@ -24,7 +24,9 @@ mic ──► faster-whisper ──► Ollama (/api/chat + tools) ──► neur
 ## Run
 
 ```bash
-run.bat
+run_ui.bat                                      # launch the futuristic Web Command Center UI
+run.bat --ui                                    # same, opens browser / native Edge window
+run.bat                                         # CLI console voice loop
 ```
 
 Other modes:
@@ -37,6 +39,20 @@ run.bat --device 15 --confirm voice             # pick a mic, approve by saying 
 run.bat --demo-voices                           # hear every voice, then pick one
 run.bat --list-voices                           # names you can pass to --voice
 ```
+
+### UI Features:
+- **60 FPS Canvas Voice Orb**: Multi-layered real-time particle and harmonic wave visualization with 11 distinct states (`idle`, `listening`, `hearing`, `processing`, `thinking`, `tool`, `confirmation`, `executing`, `speaking`, `success`, `error`).
+- **Low-Latency WebSocket Streaming**: Real-time microphone RMS level meter, transcription typing effect, spoken responses, and activity timeline.
+- **Safety First**: Full command previews, risk tier assessment, reversibility indicators, and interactive authorization modal.
+- **Keyboard Shortcuts**:
+  - `Space`: Push-to-Talk (hold or toggle)
+  - `Escape`: Instant Interrupt / Stop
+  - `Ctrl + K`: Quick command prompt
+  - `Ctrl + L`: Clear conversation history
+  - `Ctrl + ,`: Settings & model/voice switcher
+  - `Ctrl + T`: Activity stream drawer
+  - `Ctrl + H`: Past queries drawer
+- **Settings Panel**: Live Ollama model selector, TTS engine & voice tester with sample speech playback, speaking rate slider, shell selection (PowerShell / CMD), and confirmation policy.
 
 Say or type `exit` to quit, `reset` to clear the conversation history.
 

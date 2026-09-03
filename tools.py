@@ -58,7 +58,9 @@ SAFE_PREFIXES: tuple[str, ...] = (
     "format-table", "format-list", "ft ", "fl ", "out-string", "convertto-json",
     "git status", "git log", "git diff", "git branch", "git remote",
     "python --version", "python -v", "pip list", "pip show", "node -v", "npm list",
-    "claude", "claude -p", "claude --version", "agy", "agy run", "agy chat",
+    "claude", "claude -p", "claude --version", "agy", "agy run", "agy chat", "agy -p", "agy --print",
+    "start", "start-process", "start agy", "start powershell", "start cmd", "start wt",
+    "powershell", "cmd",
     "where", "which", "get-command", "measure-object", "select-string", "findstr",
     "help", "man", "get-help", "clear", "cls",
 )
@@ -86,6 +88,57 @@ def classify(command: str) -> tuple[str, str]:
         return "safe", "read-only command"
 
     return "confirm", "not on the read-only allowlist"
+
+
+def assess_command_risk(command: str, cwd: str = "") -> dict[str, Any]:
+    """Provide a structured safety assessment for the UI command preview."""
+    verdict, reason = classify(command)
+    cmd_low = command.lower().strip()
+
+    # Risk level hierarchy
+    if verdict == "blocked":
+        risk = "destructive"
+    elif verdict == "safe":
+        risk = "low"
+    else:
+        # Check for dangerous or high impact operations
+        if any(w in cmd_low for w in (
+            "remove-item", "del ", "rmdir", "rd ", "drop ", "truncate", "kill ",
+            "stop-process", "kill-process", "taskkill", "format", "wipe"
+        )):
+            risk = "high"
+        elif any(w in cmd_low for w in ("install", "uninstall", "update", "set-", "new-item", "mkdir", "write-")):
+            risk = "medium"
+        else:
+            risk = "medium"
+
+    # Determine reversibility
+    reversible = False
+    if verdict == "safe":
+        reversible = True
+    elif any(cmd_low.startswith(p) for p in ("git checkout", "git switch", "git stash", "cd ", "mkdir")):
+        reversible = True
+
+    # Identify affected category and location
+    category = "Command Runner"
+    if any(k in cmd_low for k in ("chrome", "browser", "curl", "iwr", "http")):
+        category = "Network / Browser"
+    elif any(k in cmd_low for k in ("agy", "claude", "git", "python", "node", "npm")):
+        category = "Developer Tools"
+    elif any(k in cmd_low for k in ("dir", "ls", "get-childitem", "remove-item", "copy", "move")):
+        category = "Local Filesystem"
+    elif any(k in cmd_low for k in ("process", "tasklist", "taskkill", "service")):
+        category = "System Processes"
+
+    return {
+        "command": command,
+        "verdict": verdict,
+        "reason": reason,
+        "risk": risk,
+        "reversible": reversible,
+        "category": category,
+        "affected": cwd or os.getcwd(),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -194,6 +247,19 @@ class ToolBox:
                 if not approved:
                     return json.dumps({"refused": True, "reason": "The user declined this command."})
 
+        cmd_low = command.lower().strip()
+        if shell == "powershell":
+            if cmd_low.startswith("start powershell -"):
+                args_part = command[len("start powershell "):].strip()
+                command = f'Start-Process powershell -ArgumentList "{args_part}"'
+            elif cmd_low in ("agy", "claude"):
+                command = f"Start-Process {command}"
+            elif cmd_low.startswith(("powershell -noexit", "powershell.exe -noexit")):
+                command = f'Start-Process powershell -ArgumentList "{command[len("powershell "):].strip()}"'
+        elif shell == "cmd":
+            if cmd_low in ("agy", "claude"):
+                command = f"start {command}"
+
         argv = (
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", command]
             if shell == "powershell"
@@ -223,11 +289,18 @@ class ToolBox:
         if len(err) > limit:
             err = err[:limit] + f"\n...[truncated]"
 
+        stdout_text = out.strip()
+        if not stdout_text and not err.strip() and code == 0:
+            if command.lower().startswith(("start", "start-process")):
+                stdout_text = "Process launched successfully in a new window."
+            else:
+                stdout_text = "(command completed with no output)"
+
         return json.dumps({
             "command": command,
             "shell": shell,
             "cwd": self.cwd,
             "exit_code": code,
-            "stdout": out.strip(),
+            "stdout": stdout_text,
             "stderr": err.strip(),
         })

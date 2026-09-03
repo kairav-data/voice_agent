@@ -1,0 +1,1193 @@
+/**
+ * Voice Agent Command Center — Application Controller
+ * High-performance WebSocket event dispatcher, state manager, and UI binder.
+ */
+
+(function () {
+  "use strict";
+
+  // Elements
+  const stateBadge = document.getElementById("voiceStateBadge");
+  const stateBadgeText = document.getElementById("voiceStateText");
+  const orbCenterLabel = document.getElementById("orbCenterLabel");
+  const orbWrapper = document.getElementById("orbWrapper");
+  const userUtterance = document.getElementById("userUtterance");
+  const agentResponseBox = document.getElementById("agentResponseBox");
+  const agentResponseText = document.getElementById("agentResponseText");
+  const toolActionCard = document.getElementById("toolActionCard");
+  const toolConsolePanel = document.getElementById("toolConsolePanel");
+  const toolActionHeader = document.getElementById("toolActionHeader");
+  const toolTitle = document.getElementById("toolTitle");
+  const toolPurpose = document.getElementById("toolPurpose");
+  const toolRiskPill = document.getElementById("toolRiskPill");
+  const toolStatusBadge = document.getElementById("toolStatusBadge");
+  const toolCommandText = document.getElementById("toolCommandText");
+  const consoleOutput = document.getElementById("consoleOutput");
+
+  const btnPushToTalk = document.getElementById("btnPushToTalk");
+  const btnStopInterrupt = document.getElementById("btnStopInterrupt");
+  const btnToggleContinuous = document.getElementById("btnToggleContinuous");
+  const continuousDot = document.getElementById("continuousDot");
+  const inputPrompt = document.getElementById("inputPrompt");
+  const formPrompt = document.getElementById("formPrompt");
+
+  // Modals & Drawers
+  const confirmModal = document.getElementById("confirmModal");
+  const confirmCmdText = document.getElementById("confirmCmdText");
+  const confirmRiskVal = document.getElementById("confirmRiskVal");
+  const confirmReversibleVal = document.getElementById("confirmReversibleVal");
+  const confirmCategoryVal = document.getElementById("confirmCategoryVal");
+  const confirmAffectedVal = document.getElementById("confirmAffectedVal");
+  const btnConfirmApprove = document.getElementById("btnConfirmApprove");
+  const btnConfirmDecline = document.getElementById("btnConfirmDecline");
+
+  const settingsModal = document.getElementById("settingsModal");
+  const btnOpenSettings = document.getElementById("btnOpenSettings");
+  const btnCloseSettings = document.getElementById("btnCloseSettings");
+
+  const historyDrawer = document.getElementById("historyDrawer");
+  const btnOpenHistory = document.getElementById("btnOpenHistory");
+  const btnCloseHistory = document.getElementById("btnCloseHistory");
+  const historyContent = document.getElementById("historyContent");
+  const btnClearHistory = document.getElementById("btnClearHistory");
+
+  const timelineDrawer = document.getElementById("timelineDrawer");
+  const btnOpenTimeline = document.getElementById("btnOpenTimeline");
+  const btnCloseTimeline = document.getElementById("btnCloseTimeline");
+  const timelineContent = document.getElementById("timelineContent");
+
+  // Screen Mirror & Mobile Companion
+  const btnToggleScreenMirror = document.getElementById("btnToggleScreenMirror");
+  const btnOpenMobileConnect = document.getElementById("btnOpenMobileConnect");
+  const screenMirrorOverlay = document.getElementById("screenMirrorOverlay");
+  const screenStreamVideo = document.getElementById("screenStreamVideo");
+  const screenStreamImg = document.getElementById("screenStreamImg");
+  const btnCloseScreenMirror = document.getElementById("btnCloseScreenMirror");
+  const btnScreenFullscreen = document.getElementById("btnScreenFullscreen");
+  const btnToggleTouchClicks = document.getElementById("btnToggleTouchClicks");
+  const touchClickLabel = document.getElementById("touchClickLabel");
+  const screenClickRipple = document.getElementById("screenClickRipple");
+  const btnScreenDictate = document.getElementById("btnScreenDictate");
+  const screenDictateLabel = document.getElementById("screenDictateLabel");
+
+  const mobileConnectModal = document.getElementById("mobileConnectModal");
+  const btnCloseMobileConnect = document.getElementById("btnCloseMobileConnect");
+  const mobileQrImg = document.getElementById("mobileQrImg");
+  const mobileUrlDisplay = document.getElementById("mobileUrlDisplay");
+  const btnCopyMobileUrl = document.getElementById("btnCopyMobileUrl");
+
+  // Visualizer Bars
+  const vizStrip = document.getElementById("visualizerStrip");
+  const vizBars = [];
+  const NUM_VIZ_BARS = 28;
+
+  for (let i = 0; i < NUM_VIZ_BARS; i++) {
+    const bar = document.createElement("div");
+    bar.className = "viz-bar";
+    vizStrip.appendChild(bar);
+    vizBars.push(bar);
+  }
+
+  // Audio Cues via Web Audio API
+  let audioCtx = null;
+  function getAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+  }
+
+  function playSoundCue(type) {
+    try {
+      const ctx = getAudioContext();
+      if (ctx.state === "suspended") ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      if (type === "listen") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(780, now + 0.1);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else if (type === "done") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(660, now);
+        osc.frequency.setValueAtTime(880, now + 0.08);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+    } catch (e) {
+      // Audio context might be restricted before user interaction
+    }
+  }
+
+  // Initialize Voice Orb
+  let orb = null;
+  window.addEventListener("DOMContentLoaded", () => {
+    orb = new VoiceOrb("orbCanvas");
+  });
+
+  // State Machine Labels
+  const STATE_LABELS = {
+    idle: "READY",
+    listening: "LISTENING",
+    hearing: "HEARING",
+    processing: "UNDERSTANDING",
+    thinking: "THINKING",
+    tool: "PREPARING ACTION",
+    confirmation: "CONFIRMATION REQUIRED",
+    executing: "EXECUTING",
+    speaking: "SPEAKING",
+    success: "COMPLETED",
+    error: "ERROR",
+  };
+
+  let currentState = "idle";
+  let pendingConfirmId = null;
+
+  function updateState(newState, extra) {
+    currentState = newState;
+    if (orb) orb.setState(newState);
+
+    // Update State Badge
+    stateBadge.className = `voice-state-badge state-${newState}`;
+    stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
+
+    // Update Center Label
+    if (newState === "listening") {
+      orbCenterLabel.textContent = "Listening";
+      btnPushToTalk.classList.add("active");
+    } else if (newState === "thinking") {
+      orbCenterLabel.textContent = "Thinking";
+      btnPushToTalk.classList.remove("active");
+    } else if (newState === "speaking") {
+      orbCenterLabel.textContent = "Speaking";
+      btnPushToTalk.classList.remove("active");
+    } else {
+      orbCenterLabel.textContent = "Press to Talk";
+      btnPushToTalk.classList.remove("active");
+    }
+
+    // Toggle Interrupt button visibility during active speech or execution
+    if (["speaking", "executing", "thinking", "tool"].includes(newState)) {
+      btnStopInterrupt.style.display = "inline-flex";
+    } else {
+      btnStopInterrupt.style.display = "none";
+    }
+  }
+
+  // ========================================================================
+  // WebSocket Client
+  // ========================================================================
+  let socket = null;
+  let reconnectTimer = null;
+
+  function connectWebSocket() {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${location.host}/ws`;
+
+    socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      console.log("[ws] Connected to Voice Agent Command Center");
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+
+    socket.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        handleServerMessage(msg);
+      } catch (err) {
+        console.error("[ws] Error parsing server message:", err);
+      }
+    };
+
+    socket.onclose = () => {
+      console.warn("[ws] Connection lost. Retrying in 2s...");
+      reconnectTimer = setTimeout(connectWebSocket, 2000);
+    };
+
+    socket.onerror = (err) => {
+      console.error("[ws] Error:", err);
+    };
+  }
+
+  function sendWS(type, data) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type, ...(data || {}) }));
+    }
+  }
+
+  function handleServerMessage(msg) {
+    const type = msg.type;
+
+    if (type === "init") {
+      updateSystemUI(msg.system);
+      renderHistory(msg.history);
+      renderTimeline(msg.timeline);
+      if (msg.state) updateState(msg.state);
+      if (msg.network && msg.network.url) {
+        updateMobileConnectInfo(msg.network.url);
+      }
+
+    } else if (type === "state_changed") {
+      updateState(msg.state, msg);
+
+    } else if (type === "mic_meter") {
+      if (orb) orb.setAudioLevel(msg.level);
+      updateVisualizer(msg.level);
+
+    } else if (type === "listen_started") {
+      playSoundCue("listen");
+      updateState("listening");
+
+    } else if (type === "transcription_result") {
+      userUtterance.textContent = `"${msg.text}"`;
+      userUtterance.classList.remove("is-placeholder");
+
+    } else if (type === "agent_reply") {
+      playSoundCue("done");
+      agentResponseText.textContent = msg.reply;
+      agentResponseBox.style.display = "inline-flex";
+      if (msg.item) addHistoryItem(msg.item);
+
+    } else if (type === "tool_executing") {
+      showToolCard(msg);
+
+    } else if (type === "tool_completed") {
+      completeToolCard(msg);
+
+    } else if (type === "confirm_request") {
+      showConfirmationModal(msg);
+
+    } else if (type === "confirm_resolved") {
+      hideConfirmationModal();
+
+    } else if (type === "timeline_item") {
+      appendTimelineEntry(msg.entry);
+
+    } else if (type === "continuous_changed") {
+      updateContinuousUI(msg.enabled);
+
+    } else if (type === "history_cleared") {
+      historyContent.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 40px;">No conversation history.</p>';
+      userUtterance.textContent = 'Ready when you are. Say "Open VS Code" or click the orb.';
+      userUtterance.classList.add("is-placeholder");
+      agentResponseBox.style.display = "none";
+      toolActionCard.style.display = "none";
+
+    } else if (type === "interrupted") {
+      updateState("idle");
+    }
+  }
+
+  // Visualizer bar updates
+  function updateVisualizer(level) {
+    const activeCount = Math.floor(level * NUM_VIZ_BARS);
+    vizBars.forEach((bar, idx) => {
+      const height = Math.max(4, (idx < activeCount ? (level * 22 * (1 - Math.abs(idx - activeCount / 2) / NUM_VIZ_BARS)) : 4));
+      bar.style.height = `${height}px`;
+      if (idx < activeCount) {
+        bar.classList.add("active");
+      } else {
+        bar.classList.remove("active");
+      }
+    });
+  }
+
+  // System UI status bar
+  function updateSystemUI(sys) {
+    if (!sys) return;
+    document.getElementById("pillModelName").textContent = sys.ollama?.current_model || "Ollama";
+    document.getElementById("pillWhisperName").textContent = sys.whisper?.model || "Whisper";
+    document.getElementById("pillVoiceName").textContent = sys.tts?.voice || sys.tts?.backend || "Voice";
+    document.getElementById("pillShellName").textContent = sys.safety?.default_shell || "PowerShell";
+
+    const dotOllama = document.getElementById("dotOllama");
+    if (sys.ollama?.online) {
+      dotOllama.className = "sys-dot";
+    } else {
+      dotOllama.className = "sys-dot error";
+    }
+
+    updateContinuousUI(sys.continuous_listening);
+  }
+
+  function updateContinuousUI(enabled) {
+    if (enabled) {
+      continuousDot.style.background = "var(--accent-cyan)";
+      continuousDot.style.boxShadow = "0 0 8px var(--accent-cyan)";
+      btnToggleContinuous.title = "Continuous Listening: Active";
+      btnToggleContinuous.classList.add("active");
+    } else {
+      continuousDot.style.background = "var(--text-muted)";
+      continuousDot.style.boxShadow = "none";
+      btnToggleContinuous.title = "Continuous Listening: Paused";
+      btnToggleContinuous.classList.remove("active");
+    }
+  }
+
+  // Tool Card Progressive Disclosure
+  function showToolCard(data) {
+    toolActionCard.style.display = "block";
+    toolActionCard.classList.add("executing");
+    const args = data.args || {};
+    toolTitle.textContent = `${data.name || "Command"}`;
+    toolPurpose.textContent = args.purpose || args.command || "Executing action...";
+    toolRiskPill.textContent = "EXECUTING";
+    toolRiskPill.className = "risk-pill medium";
+    toolStatusBadge.textContent = "Running...";
+    toolStatusBadge.className = "tool-status-badge running";
+    toolCommandText.textContent = args.command || "";
+    consoleOutput.textContent = "Starting process...";
+  }
+
+  function completeToolCard(data) {
+    toolActionCard.classList.remove("executing");
+    toolStatusBadge.textContent = `Completed`;
+    toolStatusBadge.className = "tool-status-badge completed";
+    toolRiskPill.textContent = "SUCCESS";
+    toolRiskPill.className = "risk-pill low";
+
+    try {
+      const res = JSON.parse(data.result || "{}");
+      consoleOutput.innerHTML = "";
+      if (res.stdout) {
+        const span = document.createElement("span");
+        span.textContent = res.stdout;
+        consoleOutput.appendChild(span);
+      }
+      if (res.stderr) {
+        const errSpan = document.createElement("span");
+        errSpan.className = "stderr";
+        errSpan.textContent = "\n" + res.stderr;
+        consoleOutput.appendChild(errSpan);
+      }
+    } catch (e) {
+      consoleOutput.textContent = data.result || "(no output)";
+    }
+  }
+
+  toolActionHeader.addEventListener("click", () => {
+    toolConsolePanel.classList.toggle("expanded");
+  });
+
+  // Safety Confirmation Modal
+  function showConfirmationModal(data) {
+    pendingConfirmId = data.id;
+    confirmCmdText.textContent = data.command || "";
+    confirmRiskVal.textContent = (data.risk || "medium").toUpperCase();
+    confirmRiskVal.style.color = data.risk === "destructive" || data.risk === "high" ? "var(--accent-rose)" : "var(--accent-amber)";
+    confirmReversibleVal.textContent = data.reversible ? "Yes" : "No";
+    confirmCategoryVal.textContent = data.category || "Local System";
+    confirmAffectedVal.textContent = data.affected || "Local Machine";
+    confirmModal.classList.add("active");
+  }
+
+  function hideConfirmationModal() {
+    confirmModal.classList.remove("active");
+    pendingConfirmId = null;
+  }
+
+  btnConfirmApprove.addEventListener("click", () => {
+    if (pendingConfirmId) {
+      sendWS("confirm_response", { id: pendingConfirmId, approved: true });
+      hideConfirmationModal();
+    }
+  });
+
+  btnConfirmDecline.addEventListener("click", () => {
+    if (pendingConfirmId) {
+      sendWS("confirm_response", { id: pendingConfirmId, approved: false });
+      hideConfirmationModal();
+    }
+  });
+
+  // Push to talk & Microphone interaction
+  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  let isTalking = false;
+
+  function startTalking() {
+    if (isTalking) return;
+    isTalking = true;
+    if (isMobileDevice) {
+      startPhoneRecording();
+    } else {
+      sendWS("start_listening");
+    }
+  }
+
+  function stopTalking() {
+    if (!isTalking) return;
+    isTalking = false;
+    if (isMobileDevice) {
+      stopPhoneRecording();
+    } else {
+      sendWS("stop_listening");
+    }
+  }
+
+  btnPushToTalk.addEventListener("mousedown", startTalking);
+  btnPushToTalk.addEventListener("mouseup", stopTalking);
+  btnPushToTalk.addEventListener("mouseleave", () => {
+    if (isTalking) stopTalking();
+  });
+
+  btnPushToTalk.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    startTalking();
+  }, { passive: false });
+  btnPushToTalk.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    stopTalking();
+  }, { passive: false });
+  btnPushToTalk.addEventListener("touchcancel", () => {
+    if (isTalking) stopTalking();
+  });
+
+  orbWrapper.addEventListener("click", () => {
+    if (isMobileDevice) {
+      if (isMobileRecording) {
+        stopPhoneRecording();
+      } else {
+        startPhoneRecording();
+      }
+    } else {
+      sendWS("toggle_listening");
+    }
+  });
+
+  btnStopInterrupt.addEventListener("click", () => {
+    sendWS("stop");
+  });
+
+  btnToggleContinuous.addEventListener("click", () => {
+    sendWS("toggle_continuous");
+  });
+
+  // Keyboard Shortcuts
+  window.addEventListener("keydown", (e) => {
+    // Spacebar Push-to-Talk (only if not typing in input)
+    if (e.code === "Space" && document.activeElement !== inputPrompt) {
+      e.preventDefault();
+      startTalking();
+    }
+
+    // Escape to Dismiss or Interrupt
+    if (e.code === "Escape") {
+      if (screenMirrorOverlay.style.display !== "none") {
+        toggleScreenMirror(false);
+      } else if (mobileConnectModal.classList.contains("active")) {
+        mobileConnectModal.classList.remove("active");
+      } else if (confirmModal.classList.contains("active")) {
+        btnConfirmDecline.click();
+      } else if (settingsModal.classList.contains("active")) {
+        settingsModal.classList.remove("active");
+      } else if (timelineDrawer.classList.contains("open")) {
+        toggleTimelineDrawer(false);
+      } else if (historyDrawer.classList.contains("open")) {
+        toggleHistoryDrawer(false);
+      } else {
+        sendWS("stop");
+      }
+    }
+
+    // Enter in Confirmation Modal
+    if (e.code === "Enter" && confirmModal.classList.contains("active")) {
+      btnConfirmApprove.click();
+    }
+
+    // Ctrl + K to focus prompt
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      inputPrompt.focus();
+    }
+
+    // Ctrl + L to clear history
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
+      e.preventDefault();
+      sendWS("clear_history");
+    }
+
+    // Ctrl + M to toggle Live Laptop Screen Mirror
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+      e.preventDefault();
+      toggleScreenMirror();
+    }
+
+    // Ctrl + T to toggle Activity Timeline Drawer
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "t") {
+      e.preventDefault();
+      toggleTimelineDrawer();
+    }
+
+    // Ctrl + H to toggle Command History Drawer
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "h") {
+      e.preventDefault();
+      toggleHistoryDrawer();
+    }
+
+    // Ctrl + comma to open settings
+    if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+      e.preventDefault();
+      settingsModal.classList.toggle("active");
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space" && document.activeElement !== inputPrompt) {
+      e.preventDefault();
+      stopTalking();
+    }
+  });
+
+  // Text Prompt Submission
+  formPrompt.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = inputPrompt.value.trim();
+    if (!text) return;
+    inputPrompt.value = "";
+    userUtterance.textContent = `"${text}"`;
+    userUtterance.classList.remove("is-placeholder");
+    sendWS("send_text", { text });
+  });
+
+  // Starter Chips
+  document.querySelectorAll(".starter-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const text = chip.getAttribute("data-prompt") || chip.textContent.trim();
+      userUtterance.textContent = `"${text}"`;
+      userUtterance.classList.remove("is-placeholder");
+      sendWS("send_text", { text });
+    });
+  });
+
+  // ========================================================================
+  // Drawer Controllers (Togglable & Hideable)
+  // ========================================================================
+  function toggleHistoryDrawer(force) {
+    const isOpen = typeof force === "boolean" ? force : !historyDrawer.classList.contains("open");
+    historyDrawer.classList.toggle("open", isOpen);
+    btnOpenHistory.classList.toggle("active", isOpen);
+  }
+
+  function toggleTimelineDrawer(force) {
+    const isOpen = typeof force === "boolean" ? force : !timelineDrawer.classList.contains("open");
+    timelineDrawer.classList.toggle("open", isOpen);
+    btnOpenTimeline.classList.toggle("active", isOpen);
+  }
+
+  // History Drawer
+  btnOpenHistory.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleHistoryDrawer();
+  });
+  btnCloseHistory.addEventListener("click", () => toggleHistoryDrawer(false));
+  btnClearHistory.addEventListener("click", () => sendWS("clear_history"));
+
+  function renderHistory(items) {
+    if (!items || !items.length) {
+      historyContent.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 40px;">No conversation history yet.</p>';
+      return;
+    }
+    historyContent.innerHTML = "";
+    items.slice().reverse().forEach(addHistoryItem);
+  }
+
+  function addHistoryItem(item) {
+    const card = document.createElement("div");
+    card.className = "history-item-card";
+    card.innerHTML = `
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">${item.time || ""}</div>
+      <div class="history-item-req">${item.request}</div>
+      <div class="history-item-reply">${item.reply}</div>
+    `;
+    card.addEventListener("click", () => {
+      userUtterance.textContent = `"${item.request}"`;
+      userUtterance.classList.remove("is-placeholder");
+      agentResponseText.textContent = item.reply;
+      agentResponseBox.style.display = "inline-flex";
+      toggleHistoryDrawer(false);
+    });
+    historyContent.prepend(card);
+  }
+
+  // Activity Timeline Drawer (Right-Docked)
+  btnOpenTimeline.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleTimelineDrawer();
+  });
+  btnCloseTimeline.addEventListener("click", () => toggleTimelineDrawer(false));
+
+  const btnClearTimeline = document.getElementById("btnClearTimeline");
+  if (btnClearTimeline) {
+    btnClearTimeline.addEventListener("click", () => {
+      timelineContent.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 40px; font-size: 12px;">Activity stream cleared.</p>';
+    });
+  }
+
+  function renderTimeline(entries) {
+    timelineContent.innerHTML = "";
+    (entries || []).forEach(appendTimelineEntry);
+  }
+
+  function appendTimelineEntry(entry) {
+    const div = document.createElement("div");
+    div.className = "timeline-entry";
+    div.innerHTML = `
+      <div class="timeline-time">${entry.time}</div>
+      <div class="timeline-msg">${entry.message}</div>
+    `;
+    timelineContent.appendChild(div);
+    timelineContent.scrollTop = timelineContent.scrollHeight;
+  }
+
+  // Settings Modal & Hydration
+  btnOpenSettings.addEventListener("click", async () => {
+    settingsModal.classList.add("active");
+    loadSettingsData();
+  });
+  btnCloseSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
+
+  async function loadSettingsData() {
+    try {
+      const [resModels, resVoices, resStatus] = await Promise.all([
+        fetch("/api/models").then((r) => r.json()),
+        fetch("/api/voices").then((r) => r.json()),
+        fetch("/api/status").then((r) => r.json()),
+      ]);
+
+      // Populate models
+      const selectModel = document.getElementById("settingModel");
+      selectModel.innerHTML = "";
+      (resModels.models || []).forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = m.name;
+        opt.textContent = `${m.name} (${m.parameter_size || "local"})`;
+        if (m.name === resStatus.ollama?.current_model) opt.selected = true;
+        selectModel.appendChild(opt);
+      });
+
+      // Populate voice engines and voices
+      const selectBackend = document.getElementById("settingTtsBackend");
+      selectBackend.value = resStatus.tts?.backend || "auto";
+
+      const selectVoice = document.getElementById("settingVoice");
+      selectVoice.innerHTML = "";
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "Default Voice";
+      selectVoice.appendChild(defaultOpt);
+
+      (resStatus.tts?.piper_voices || []).forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = `Piper: ${v.replace(".onnx", "")}`;
+        if (resStatus.tts?.voice && v.includes(resStatus.tts.voice)) opt.selected = true;
+        selectVoice.appendChild(opt);
+      });
+
+      ["en-US-AvaNeural", "en-US-AndrewNeural", "en-IN-NeerjaNeural", "en-IN-PrabhatNeural"].forEach((ev) => {
+        const opt = document.createElement("option");
+        opt.value = ev;
+        opt.textContent = `Edge: ${ev}`;
+        if (resStatus.tts?.voice === ev) opt.selected = true;
+        selectVoice.appendChild(opt);
+      });
+
+      document.getElementById("settingRate").value = resStatus.tts?.rate || 185;
+      document.getElementById("rateValueDisplay").textContent = `${resStatus.tts?.rate || 185} wpm`;
+
+      document.getElementById("settingConfirmMode").value = resStatus.safety?.confirm_mode || "terminal";
+      document.getElementById("settingShell").value = resStatus.safety?.default_shell || "powershell";
+    } catch (e) {
+      console.error("[settings] Failed to load settings:", e);
+    }
+  }
+
+  document.getElementById("settingRate").addEventListener("input", (e) => {
+    document.getElementById("rateValueDisplay").textContent = `${e.target.value} wpm`;
+  });
+
+  document.getElementById("btnSaveSettings").addEventListener("click", async () => {
+    const payload = {
+      model: document.getElementById("settingModel").value,
+      tts_backend: document.getElementById("settingTtsBackend").value,
+      tts_voice: document.getElementById("settingVoice").value,
+      tts_rate: parseInt(document.getElementById("settingRate").value, 10),
+      confirm_mode: document.getElementById("settingConfirmMode").value,
+      default_shell: document.getElementById("settingShell").value,
+    };
+
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      settingsModal.classList.remove("active");
+    } catch (e) {
+      alert(`Could not save settings: ${e}`);
+    }
+  });
+
+  document.getElementById("btnTestVoice").addEventListener("click", async () => {
+    const voice = document.getElementById("settingVoice").value;
+    const backend = document.getElementById("settingTtsBackend").value;
+    await fetch("/api/test-voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voice, backend }),
+    });
+  });
+
+  // Read response aloud again
+  document.getElementById("btnReplayResponse").addEventListener("click", () => {
+    const text = agentResponseText.textContent;
+    if (text) {
+      fetch("/api/test-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+    }
+  });
+
+  // Copy response text
+  document.getElementById("btnCopyResponse").addEventListener("click", () => {
+    const text = agentResponseText.textContent;
+    if (text) {
+      navigator.clipboard.writeText(text);
+      alert("Response copied to clipboard");
+    }
+  });
+
+  // ========================================================================
+  // Live 60 FPS WebRTC Screen Mirror & Audio Controller
+  // ========================================================================
+  let screenMirrorOpen = false;
+  let touchClicksEnabled = true;
+  let rtcPeerConnection = null;
+  let rtcDataChannel = null;
+  let rtcMicStream = null;
+
+  async function startWebRTCScreen() {
+    try {
+      if (rtcPeerConnection) {
+        rtcPeerConnection.close();
+      }
+
+      rtcPeerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+
+      // DataChannel for zero-latency touch clicks
+      rtcDataChannel = rtcPeerConnection.createDataChannel("input");
+
+      // Add transceiver to receive 60 FPS video
+      rtcPeerConnection.addTransceiver("video", { direction: "recvonly" });
+
+      // Request phone microphone stream to stream into laptop voice agent
+      try {
+        rtcMicStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        rtcMicStream.getAudioTracks().forEach((track) => {
+          rtcPeerConnection.addTrack(track, rtcMicStream);
+        });
+        const pill = document.getElementById("screenAudioPill");
+        if (pill) pill.style.display = "inline-flex";
+      } catch (micErr) {
+        console.warn("[WebRTC mic permission skipped, proceeding with video]", micErr);
+      }
+
+      rtcPeerConnection.ontrack = (event) => {
+        if (event.track.kind === "video" && screenStreamVideo) {
+          screenStreamVideo.srcObject = event.streams[0];
+          screenStreamVideo.style.display = "block";
+          if (screenStreamImg) screenStreamImg.style.display = "none";
+        }
+      };
+
+      const offer = await rtcPeerConnection.createOffer();
+      await rtcPeerConnection.setLocalDescription(offer);
+
+      const res = await fetch("/api/webrtc/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sdp: rtcPeerConnection.localDescription.sdp,
+          type: rtcPeerConnection.localDescription.type,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
+      const answer = await res.json();
+      await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      console.log("[WebRTC] Connected 60 FPS screen and mobile mic!");
+    } catch (err) {
+      console.warn("[WebRTC connection failed, falling back to high-speed stream]", err);
+      if (screenStreamVideo) screenStreamVideo.style.display = "none";
+      if (screenStreamImg) {
+        screenStreamImg.style.display = "block";
+        screenStreamImg.src = "/api/screen/stream?fps=30&quality=65&t=" + Date.now();
+      }
+    }
+  }
+
+  function stopWebRTCScreen() {
+    if (rtcMicStream) {
+      rtcMicStream.getTracks().forEach((t) => t.stop());
+      rtcMicStream = null;
+    }
+    if (rtcPeerConnection) {
+      rtcPeerConnection.close();
+      rtcPeerConnection = null;
+    }
+    rtcDataChannel = null;
+    if (screenStreamVideo) {
+      screenStreamVideo.srcObject = null;
+    }
+    if (screenStreamImg) {
+      screenStreamImg.src = "";
+    }
+  }
+
+  function toggleScreenMirror(force) {
+    screenMirrorOpen = typeof force === "boolean" ? force : !screenMirrorOpen;
+    if (screenMirrorOpen) {
+      screenMirrorOverlay.style.display = "flex";
+      btnToggleScreenMirror.classList.add("active");
+      startWebRTCScreen();
+    } else {
+      screenMirrorOverlay.style.display = "none";
+      btnToggleScreenMirror.classList.remove("active");
+      stopWebRTCScreen();
+    }
+  }
+
+  btnToggleScreenMirror.addEventListener("click", () => toggleScreenMirror());
+  btnCloseScreenMirror.addEventListener("click", () => toggleScreenMirror(false));
+
+  btnScreenFullscreen.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+      screenMirrorOverlay.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  });
+
+  btnToggleTouchClicks.addEventListener("click", () => {
+    touchClicksEnabled = !touchClicksEnabled;
+    touchClickLabel.textContent = touchClicksEnabled ? "Touch Clicks: ON" : "Touch Clicks: OFF";
+    btnToggleTouchClicks.classList.toggle("active", touchClicksEnabled);
+  });
+
+  function handleScreenClick(e) {
+    if (!touchClicksEnabled) return;
+    const target = (screenStreamVideo && screenStreamVideo.style.display !== "none")
+      ? screenStreamVideo
+      : screenStreamImg;
+    const rect = target.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      return;
+    }
+
+    const normX = (clientX - rect.left) / rect.width;
+    const normY = (clientY - rect.top) / rect.height;
+
+    // Visual ripple feedback
+    if (screenClickRipple) {
+      screenClickRipple.style.left = `${clientX}px`;
+      screenClickRipple.style.top = `${clientY}px`;
+      screenClickRipple.classList.remove("animate");
+      void screenClickRipple.offsetWidth;
+      screenClickRipple.classList.add("animate");
+    }
+
+    if (rtcDataChannel && rtcDataChannel.readyState === "open") {
+      rtcDataChannel.send(JSON.stringify({ type: "click", x: normX, y: normY, button: "left" }));
+    } else {
+      sendWS("screen_click", { x: normX, y: normY, button: "left" });
+    }
+  }
+
+  if (screenStreamVideo) screenStreamVideo.addEventListener("click", handleScreenClick);
+  if (screenStreamImg) screenStreamImg.addEventListener("click", handleScreenClick);
+
+  // ========================================================================
+  // Phone Microphone & In-Browser Dictation
+  // ========================================================================
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let speechRec = null;
+  let isMobileRecording = false;
+  let micAudioStream = null;
+  let micMeterInterval = null;
+
+  // Web Speech API for zero-latency client dictation if supported
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    try {
+      speechRec = new SpeechRecognition();
+      speechRec.continuous = false;
+      speechRec.interimResults = true;
+      speechRec.lang = "en-US";
+
+      speechRec.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            const finalTxt = event.results[i][0].transcript.trim();
+            if (finalTxt) {
+              userUtterance.textContent = `"${finalTxt}"`;
+              userUtterance.classList.remove("is-placeholder");
+              sendWS("send_text", { text: finalTxt });
+            }
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        if (interim) {
+          userUtterance.textContent = `"${interim}..."`;
+          userUtterance.classList.remove("is-placeholder");
+        }
+      };
+
+      speechRec.onerror = (e) => {
+        console.warn("[speechRec error]", e);
+      };
+    } catch (e) {
+      console.warn("[speechRec init error]", e);
+    }
+  }
+
+  // Security Context Check for Mobile Phone Microphones
+  function checkMobileMicSecurity() {
+    if (location.protocol === "http:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      const httpsUrl = `https://${location.host}`;
+      userUtterance.innerHTML = `<span style="color: var(--accent-amber);">🔒 Phone mic requires HTTPS. <a href="${httpsUrl}" style="color: var(--accent-cyan); text-decoration: underline; font-weight: bold;">Tap here to switch to HTTPS</a> (then click Advanced → Proceed).</span>`;
+      userUtterance.classList.remove("is-placeholder");
+      return false;
+    }
+    return true;
+  }
+
+  // Check on mobile startup
+  if (isMobileDevice) {
+    checkMobileMicSecurity();
+  }
+
+  async function startPhoneRecording() {
+    if (isMobileRecording) return;
+
+    if (!checkMobileMicSecurity()) {
+      return;
+    }
+
+    isMobileRecording = true;
+    playSoundCue("listen");
+    userUtterance.textContent = '"Listening to your phone mic... Speak now!"';
+    userUtterance.classList.remove("is-placeholder");
+
+    if (btnScreenDictate) {
+      btnScreenDictate.classList.add("recording");
+      screenDictateLabel.textContent = "Listening... Release to Send";
+    }
+
+    if (speechRec) {
+      try {
+        speechRec.start();
+      } catch (e) {}
+    }
+
+    try {
+      micAudioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      // Hook up real-time audio meter on the phone
+      try {
+        const actx = getAudioContext();
+        if (actx.state === "suspended") actx.resume();
+        const source = actx.createMediaStreamSource(micAudioStream);
+        const analyser = actx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const dataArr = new Uint8Array(analyser.frequencyBinCount);
+        if (micMeterInterval) clearInterval(micMeterInterval);
+        micMeterInterval = setInterval(() => {
+          if (!isMobileRecording) return;
+          analyser.getByteFrequencyData(dataArr);
+          let sum = 0;
+          for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+          const avg = sum / dataArr.length;
+          const level = Math.min(1.0, avg / 80.0);
+          if (orb) orb.setAudioLevel(level);
+          updateVisualizer(level);
+        }, 40);
+      } catch (e) {
+        console.warn("[audio meter init error]", e);
+      }
+
+      audioChunks = [];
+      let mimeType = "audio/webm;codecs=opus";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg")) {
+          mimeType = "audio/ogg";
+        } else {
+          mimeType = "";
+        }
+      }
+
+      mediaRecorder = mimeType ? new MediaRecorder(micAudioStream, { mimeType }) : new MediaRecorder(micAudioStream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        if (micMeterInterval) {
+          clearInterval(micMeterInterval);
+          micMeterInterval = null;
+        }
+        if (micAudioStream) {
+          micAudioStream.getTracks().forEach((t) => t.stop());
+          micAudioStream = null;
+        }
+        if (audioChunks.length > 0) {
+          const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64Data = reader.result;
+            sendWS("mobile_audio", { audio: base64Data });
+          };
+          reader.readAsDataURL(blob);
+        }
+      };
+      mediaRecorder.start();
+    } catch (err) {
+      console.error("[phone mic getUserMedia error]", err);
+      isMobileRecording = false;
+      if (btnScreenDictate) {
+        btnScreenDictate.classList.remove("recording");
+        screenDictateLabel.textContent = "Hold to Dictate to Laptop";
+      }
+      userUtterance.innerHTML = `<span style="color: var(--accent-rose);">⚠️ Mic Error: ${err.message || "Permission Denied"}. Ensure you are on HTTPS and allow microphone permissions.</span>`;
+      userUtterance.classList.remove("is-placeholder");
+    }
+  }
+
+  function stopPhoneRecording() {
+    if (!isMobileRecording) return;
+    isMobileRecording = false;
+    playSoundCue("done");
+
+    if (micMeterInterval) {
+      clearInterval(micMeterInterval);
+      micMeterInterval = null;
+    }
+
+    if (btnScreenDictate) {
+      btnScreenDictate.classList.remove("recording");
+      screenDictateLabel.textContent = "Processing speech...";
+      setTimeout(() => {
+        if (!isMobileRecording && btnScreenDictate) {
+          screenDictateLabel.textContent = "Hold or Speak to Dictate";
+        }
+      }, 2500);
+    }
+
+    if (speechRec) {
+      try {
+        speechRec.stop();
+      } catch (e) {}
+    }
+
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+  }
+
+  if (btnScreenDictate) {
+    btnScreenDictate.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      startPhoneRecording();
+    });
+    btnScreenDictate.addEventListener("mouseup", (e) => {
+      e.preventDefault();
+      stopPhoneRecording();
+    });
+    btnScreenDictate.addEventListener("mouseleave", () => {
+      if (isMobileRecording) stopPhoneRecording();
+    });
+    btnScreenDictate.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      startPhoneRecording();
+    }, { passive: false });
+    btnScreenDictate.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      stopPhoneRecording();
+    }, { passive: false });
+    btnScreenDictate.addEventListener("touchcancel", () => {
+      if (isMobileRecording) stopPhoneRecording();
+    });
+  }
+
+  // ========================================================================
+  // Mobile Connect & QR Code Modal
+  // ========================================================================
+  function updateMobileConnectInfo(url) {
+    if (!url) return;
+    mobileUrlDisplay.textContent = url;
+    mobileQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+  }
+
+  btnOpenMobileConnect.addEventListener("click", async () => {
+    mobileConnectModal.classList.add("active");
+    try {
+      const res = await fetch("/api/network-info").then((r) => r.json());
+      if (res && res.url) updateMobileConnectInfo(res.url);
+    } catch (e) {
+      console.warn("[network-info error]", e);
+    }
+  });
+
+  btnCloseMobileConnect.addEventListener("click", () => {
+    mobileConnectModal.classList.remove("active");
+  });
+
+  btnCopyMobileUrl.addEventListener("click", () => {
+    const url = mobileUrlDisplay.textContent;
+    if (url) {
+      navigator.clipboard.writeText(url);
+      btnCopyMobileUrl.textContent = "Copied!";
+      setTimeout(() => (btnCopyMobileUrl.textContent = "Copy"), 2000);
+    }
+  });
+
+  // Start WebSocket
+  connectWebSocket();
+})();

@@ -180,12 +180,20 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.tts_rate = args.rate
     if args.wake:
         cfg.wake_word = args.wake
+    if hasattr(args, "ssl") and args.ssl is not None:
+        cfg.ui_ssl = args.ssl
+    if hasattr(args, "no_ssl") and args.no_ssl:
+        cfg.ui_ssl = False
     cfg.__post_init__()
     return cfg
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="STT -> Ollama -> TTS agent with shell control")
+    p.add_argument("--ui", action="store_true", help="launch the futuristic web command center")
+    p.add_argument("--port", type=int, help="port for the UI command center (default: 8000)")
+    p.add_argument("--ssl", action="store_true", default=None, help="enable HTTPS for phone microphone access")
+    p.add_argument("--no-ssl", action="store_true", help="disable HTTPS")
     p.add_argument("--text", action="store_true", help="type instead of speaking")
     p.add_argument("--once", metavar="TEXT", help="run a single instruction and exit")
     p.add_argument("--list-devices", action="store_true", help="show audio input devices")
@@ -214,6 +222,8 @@ def main() -> None:
         return
 
     cfg = build_config(args)
+    if args.port:
+        cfg.ui_port = args.port
 
     if args.list_voices:
         from audio import list_voices
@@ -223,6 +233,11 @@ def main() -> None:
     if args.demo_voices:
         from audio import demo_voices
         demo_voices(cfg)
+        return
+
+    if args.ui:
+        from ui_server import run_server
+        run_server(cfg)
         return
 
     if args.once:

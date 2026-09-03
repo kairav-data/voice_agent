@@ -72,6 +72,13 @@ class Config:
     wake_word: str = _env("WAKE_WORD", "")  # empty = always listening
     stop_words: tuple[str, ...] = ("exit", "quit", "goodbye", "stop listening", "shut down")
 
+    # ---------------- UI & Server ----------------
+    ui_host: str = _env("HOST", "0.0.0.0")
+    ui_port: int = _env_int("PORT", 8000)
+    ui_ssl: bool = _env("SSL", "true").lower() in ("true", "1", "yes")
+    ssl_cert: str = _env("SSL_CERT", "cert.pem")
+    ssl_key: str = _env("SSL_KEY", "key.pem")
+
     system_prompt: str = field(default="")
 
     def __post_init__(self) -> None:
@@ -89,11 +96,19 @@ Your replies are read aloud by a text-to-speech engine, so:
 
 You can operate the computer using the `run_command` tool.
 - The default shell is {shell} and the working directory is {workdir}.
-- When the user asks to "Ask Claude", "in claude run", "use Claude to...", or asks Claude to code/refactor/analyze, use `run_command` to run the Claude Code CLI:
-  `claude -p "<prompt>"` or `claude -p --dangerously-skip-permissions "<prompt>"`
-- When the user asks to "Ask Antigravity" or run an Antigravity task, run:
-  `agy run "<prompt>"`
+
+Antigravity CLI and Claude CLI handling:
+- When the user asks to "Open Antigravity CLI", "Open Antigravity", or launch Antigravity without a prompt:
+  Run `run_command` with command `start agy` exactly once, and then answer aloud: "Antigravity CLI is open. What prompt would you like to provide?"
+- When the user provides a prompt for Antigravity (or asks to run/ask Antigravity a task):
+  Run `run_command` with: `agy -p --dangerously-skip-permissions "<prompt>"`
+- When the user asks to "Open Claude CLI" or "Open Claude" without a prompt:
+  Run `run_command` with command `start claude` exactly once, and then answer aloud: "Claude CLI is open. What prompt would you like to provide?"
+- When the user provides a prompt for Claude (or asks to run/ask Claude a task):
+  Run `run_command` with: `claude -p --dangerously-skip-permissions "<prompt>"`
+
+General instructions:
 - For general Windows or developer tasks, run the appropriate PowerShell / CMD command.
 - If a command fails, read the error and try once more with a fix before giving up.
-- Only respond conversationally without tools if the user is having casual conversation with YOU (e.g. "hi", "how are you today?"). Any request mentioning Claude, Antigravity, or terminal commands MUST trigger `run_command`."""
+- Only respond conversationally without tools if the user is having casual conversation with YOU (e.g. "hi", "how are you today?") or when prompting the user for follow-up details."""
 

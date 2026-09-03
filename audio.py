@@ -33,11 +33,21 @@ class Recorder:
     first syllable is not clipped.
     """
 
-    def __init__(self, cfg: Config):
+    def __init__(
+        self,
+        cfg: Config,
+        on_meter: Callable[[float], None] | None = None,
+        on_speech_start: Callable[[], None] | None = None,
+        on_speech_end: Callable[[], None] | None = None,
+    ):
         self.cfg = cfg
+        self.on_meter = on_meter
+        self.on_speech_start = on_speech_start
+        self.on_speech_end = on_speech_end
         self.frame_len = int(cfg.samplerate * cfg.frame_ms / 1000)
         self.threshold = cfg.energy_floor
         self._q: queue.Queue[np.ndarray] = queue.Queue()
+        self._stop_event = threading.Event()
 
     # -- helpers ----------------------------------------------------------- #
     @staticmethod
@@ -47,7 +57,13 @@ class Recorder:
     def _callback(self, indata, frames, time_info, status):  # noqa: ANN001
         if status:
             pass  # over/underflows are not fatal for speech capture
-        self._q.put(indata[:, 0].copy())
+        frame = indata[:, 0].copy()
+        self._q.put(frame)
+        if self.on_meter:
+            try:
+                self.on_meter(self._rms(frame))
+            except Exception:
+                pass
 
     def _open_stream(self) -> sd.InputStream:
         return sd.InputStream(
@@ -82,9 +98,14 @@ class Recorder:
             except queue.Empty:
                 break
 
+    def cancel(self) -> None:
+        """Cancel current recording immediately."""
+        self._stop_event.set()
+
     def record_utterance(self) -> np.ndarray | None:
         """Block until the user speaks, then return float32 mono audio at 16 kHz."""
         cfg = self.cfg
+        self._stop_event.clear()
         preroll_frames = max(1, int(0.3 * 1000 / cfg.frame_ms))
         hangover_frames = max(1, int(cfg.silence_hangover_s * 1000 / cfg.frame_ms))
         min_speech_frames = max(1, int(cfg.min_speech_s * 1000 / cfg.frame_ms))
@@ -99,8 +120,12 @@ class Recorder:
         self._drain()
         with self._open_stream():
             while True:
+                if self._stop_event.is_set():
+                    self._stop_event.clear()
+                    return None
+
                 try:
-                    frame = self._q.get(timeout=5.0)
+                    frame = self._q.get(timeout=0.2)
                 except queue.Empty:
                     continue
 
@@ -114,11 +139,21 @@ class Recorder:
                         started = True
                         voiced = list(preroll)
                         voiced.append(frame)
+                        if self.on_speech_start:
+                            try:
+                                self.on_speech_start()
+                            except Exception:
+                                pass
                     continue
 
                 voiced.append(frame)
                 quiet_streak = 0 if level > self.threshold else quiet_streak + 1
                 if quiet_streak >= hangover_frames or len(voiced) >= max_frames:
+                    if self.on_speech_end:
+                        try:
+                            self.on_speech_end()
+                        except Exception:
+                            pass
                     break
 
         if len(voiced) - hangover_frames < min_speech_frames:
@@ -176,6 +211,8 @@ def find_piper_model(cfg: Config) -> str | None:
     for name in models:
         if wanted and wanted in name.lower():
             return os.path.join(voices_dir, name)
+    if wanted:
+        return None
     return os.path.join(voices_dir, models[0]) if models else None
 
 
@@ -341,18 +378,36 @@ class Speaker:
     synthesised one ahead of playback so speech starts as soon as possible.
     """
 
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, on_state: Callable[[str, dict], None] | None = None):
         self.cfg = cfg
+        self.on_state = on_state
         self.backend_name = "none"
         self._q: queue.Queue[str | None] = queue.Queue()
         self._streams: dict[int, sd.OutputStream] = {}
         self._idle = threading.Event()
         self._idle.set()
         self._ready = threading.Event()
+        self._interrupt_event = threading.Event()
         self._thread: threading.Thread | None = None
         if cfg.tts_enabled:
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
+
+    def interrupt(self) -> None:
+        """Immediately stop current and queued speech."""
+        self._interrupt_event.set()
+        while not self._q.empty():
+            try:
+                self._q.get_nowait()
+            except queue.Empty:
+                break
+        self._close_streams()
+        self._idle.set()
+        if self.on_state:
+            try:
+                self.on_state("idle", {})
+            except Exception:
+                pass
 
     # -- backend selection --------------------------------------------------- #
     def _make_backend(self):
@@ -416,6 +471,12 @@ class Speaker:
             if text is None:
                 break
             self._idle.clear()
+            self._interrupt_event.clear()
+            if self.on_state:
+                try:
+                    self.on_state("speaking", {"text": text})
+                except Exception:
+                    pass
             try:
                 if backend is None:
                     pass
@@ -425,7 +486,11 @@ class Speaker:
                     chunks = split_sentences(text)
                     pending = pool.submit(backend.synth, chunks[0])
                     for i, _chunk in enumerate(chunks):
+                        if self._interrupt_event.is_set():
+                            break
                         audio, rate = pending.result()
+                        if self._interrupt_event.is_set():
+                            break
                         if i + 1 < len(chunks):
                             pending = pool.submit(backend.synth, chunks[i + 1])
                         self._play(audio, rate)
@@ -433,6 +498,11 @@ class Speaker:
                 print(f"[tts] {exc}", file=sys.stderr)
             finally:
                 self._idle.set()
+                if self.on_state:
+                    try:
+                        self.on_state("idle", {})
+                    except Exception:
+                        pass
 
         self._close_streams()
         if pool is not None:

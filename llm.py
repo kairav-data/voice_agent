@@ -59,11 +59,22 @@ class OllamaAgent:
         self.messages = [{"role": "system", "content": self.cfg.system_prompt}]
 
     # -- main loop ----------------------------------------------------------- #
-    def ask(self, user_text: str, on_tool: Callable[[str, dict], None] | None = None) -> str:
+    def ask(
+        self,
+        user_text: str,
+        on_tool: Callable[[str, dict], None] | None = None,
+        on_status: Callable[[str, dict], None] | None = None,
+    ) -> str:
         self.messages.append({"role": "user", "content": user_text})
         self._trim()
 
         for _round in range(self.cfg.max_tool_rounds):
+            if on_status:
+                try:
+                    on_status("thinking", {"round": _round})
+                except Exception:
+                    pass
+
             data = self._post({
                 "model": self.cfg.model,
                 "messages": self.messages,
@@ -95,7 +106,20 @@ class OllamaAgent:
 
                 if on_tool:
                     on_tool(name, raw_args)
+                if on_status:
+                    try:
+                        on_status("tool_start", {"name": name, "args": raw_args})
+                    except Exception:
+                        pass
+
                 result = self.toolbox.call(name, raw_args)
+
+                if on_status:
+                    try:
+                        on_status("tool_result", {"name": name, "args": raw_args, "result": result})
+                    except Exception:
+                        pass
+
                 self.messages.append({
                     "role": "tool",
                     "name": name,
