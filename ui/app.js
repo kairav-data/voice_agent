@@ -129,6 +129,82 @@
     }
   }
 
+  // ========================================================================
+  // Client Spoken Audio Playback (for phone / remote device speaker)
+  // ========================================================================
+  let clientAudio = null;
+  let lastReplyAudio = null;
+  let lastReplyText = "";
+
+  function primeAudioPlayback() {
+    if (!clientAudio) {
+      clientAudio = new Audio();
+    }
+    const actx = getAudioContext();
+    if (actx && actx.state === "suspended") {
+      actx.resume().catch(() => {});
+    }
+  }
+
+  // Prime audio playback on initial user gesture on mobile
+  document.addEventListener("touchstart", primeAudioPlayback, { passive: true, once: true });
+  document.addEventListener("click", primeAudioPlayback, { passive: true, once: true });
+
+  function playSpokenReply(audioSrc, fallbackText) {
+    if (!audioSrc && !fallbackText) return;
+    primeAudioPlayback();
+
+    if (audioSrc) {
+      lastReplyAudio = audioSrc;
+      lastReplyText = fallbackText || "";
+      try {
+        if (!clientAudio) clientAudio = new Audio();
+        clientAudio.pause();
+        clientAudio.src = audioSrc;
+        clientAudio.currentTime = 0;
+
+        clientAudio.onplay = () => {
+          updateState("speaking");
+        };
+        clientAudio.onended = () => {
+          updateState("idle");
+        };
+        clientAudio.onerror = (e) => {
+          console.warn("[Client audio error, falling back to Web Speech]", e);
+          speakWithWebSpeech(fallbackText);
+        };
+
+        const p = clientAudio.play();
+        if (p !== undefined) {
+          p.catch((err) => {
+            console.warn("[Autoplay error, fallback to Web Speech]", err);
+            speakWithWebSpeech(fallbackText);
+          });
+        }
+      } catch (err) {
+        console.warn("[Audio element error]", err);
+        speakWithWebSpeech(fallbackText);
+      }
+    } else if (fallbackText) {
+      speakWithWebSpeech(fallbackText);
+    }
+  }
+
+  function speakWithWebSpeech(text) {
+    if (!("speechSynthesis" in window) || !text) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.onstart = () => updateState("speaking");
+      u.onend = () => updateState("idle");
+      u.onerror = () => updateState("idle");
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      console.warn("[WebSpeech error]", e);
+      updateState("idle");
+    }
+  }
+
   // Initialize Voice Orb
   let orb = null;
   window.addEventListener("DOMContentLoaded", () => {
@@ -222,7 +298,8 @@
 
   function sendWS(type, data) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type, ...(data || {}) }));
+      const client = isMobileDevice ? "phone" : "laptop";
+      socket.send(JSON.stringify({ type, client, ...(data || {}) }));
     }
   }
 
@@ -258,6 +335,17 @@
       agentResponseText.textContent = msg.reply;
       agentResponseBox.style.display = "inline-flex";
       if (msg.item) addHistoryItem(msg.item);
+
+      lastReplyText = msg.reply || "";
+      lastReplyAudio = msg.audio || msg.audio_url || null;
+
+      // Spoken response playback on client (phone speaker):
+      // If msg.play_on_client is true (e.g. instruction came from phone),
+      // OR if this client is on mobile and audio is present:
+      const shouldPlayOnThisDevice = msg.play_on_client || (isMobileDevice && msg.source === "phone") || (isMobileDevice && msg.audio);
+      if (shouldPlayOnThisDevice && (msg.audio || msg.reply)) {
+        playSpokenReply(msg.audio || msg.audio_url, msg.reply);
+      }
 
     } else if (type === "tool_executing") {
       showToolCard(msg);
@@ -627,6 +715,16 @@
   });
   btnCloseTimeline.addEventListener("click", () => toggleTimelineDrawer(false));
 
+  // Click outside drawer to close
+  document.addEventListener("click", (e) => {
+    if (timelineDrawer && timelineDrawer.classList.contains("open") && !timelineDrawer.contains(e.target) && !btnOpenTimeline.contains(e.target)) {
+      toggleTimelineDrawer(false);
+    }
+    if (historyDrawer && historyDrawer.classList.contains("open") && !historyDrawer.contains(e.target) && !btnOpenHistory.contains(e.target)) {
+      toggleHistoryDrawer(false);
+    }
+  });
+
   const btnClearTimeline = document.getElementById("btnClearTimeline");
   if (btnClearTimeline) {
     btnClearTimeline.addEventListener("click", () => {
@@ -703,6 +801,9 @@
         selectVoice.appendChild(opt);
       });
 
+      const selectTarget = document.getElementById("settingSpeakerTarget");
+      if (selectTarget) selectTarget.value = resStatus.tts?.speaker_target || "auto";
+
       document.getElementById("settingRate").value = resStatus.tts?.rate || 185;
       document.getElementById("rateValueDisplay").textContent = `${resStatus.tts?.rate || 185} wpm`;
 
@@ -723,6 +824,7 @@
       tts_backend: document.getElementById("settingTtsBackend").value,
       tts_voice: document.getElementById("settingVoice").value,
       tts_rate: parseInt(document.getElementById("settingRate").value, 10),
+      tts_speaker_target: document.getElementById("settingSpeakerTarget")?.value || "auto",
       confirm_mode: document.getElementById("settingConfirmMode").value,
       default_shell: document.getElementById("settingShell").value,
     };
@@ -739,25 +841,36 @@
     }
   });
 
+  const btnCancelSettings = document.getElementById("btnCancelSettings");
+  if (btnCancelSettings) {
+    btnCancelSettings.addEventListener("click", () => {
+      settingsModal.classList.remove("active");
+    });
+  }
+
   document.getElementById("btnTestVoice").addEventListener("click", async () => {
     const voice = document.getElementById("settingVoice").value;
     const backend = document.getElementById("settingTtsBackend").value;
-    await fetch("/api/test-voice", {
+    const res = await fetch("/api/test-voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ voice, backend }),
     });
+    try {
+      const data = await res.json();
+      if (data.audio && isMobileDevice) {
+        playSpokenReply(data.audio, "Voice test preview");
+      }
+    } catch (e) {}
   });
 
-  // Read response aloud again
+  // Read response aloud again (plays on phone speaker if on mobile)
   document.getElementById("btnReplayResponse").addEventListener("click", () => {
     const text = agentResponseText.textContent;
-    if (text) {
-      fetch("/api/test-voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
+    if (lastReplyAudio) {
+      playSpokenReply(lastReplyAudio, text);
+    } else if (text) {
+      playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
     }
   });
 
@@ -771,19 +884,146 @@
   });
 
   // ========================================================================
-  // Live 60 FPS WebRTC Screen Mirror & Audio Controller
+  // Live 60 FPS WebRTC Screen Mirror & Audio Controller (Zero-Trim & Pinch-Zoom)
   // ========================================================================
   let screenMirrorOpen = false;
   let touchClicksEnabled = true;
   let rtcPeerConnection = null;
   let rtcDataChannel = null;
   let rtcMicStream = null;
+  let screenMicLive = false; // Muted by default!
+
+  // Screen Zoom & Pan State
+  let currentZoom = 1.0;
+  let panX = 0;
+  let panY = 0;
+  let isDraggingScreen = false;
+  let startTouchX = 0;
+  let startTouchY = 0;
+  let initialPinchDistance = 0;
+  let initialZoom = 1.0;
+  let lastTapTime = 0;
+
+  const screenTransformBox = document.getElementById("screenTransformBox");
+  const screenZoomToast = document.getElementById("screenZoomToast");
+  const btnToggleScreenMic = document.getElementById("btnToggleScreenMic");
+  const screenMicLabel = document.getElementById("screenMicLabel");
+  const btnToggleScreenFit = document.getElementById("btnToggleScreenFit");
+  const screenFitLabel = document.getElementById("screenFitLabel");
+
+  function applyScreenTransform(animate = false) {
+    if (!screenTransformBox) return;
+    const maxPanX = Math.max(0, ((currentZoom - 1) * window.innerWidth) / 2);
+    const maxPanY = Math.max(0, ((currentZoom - 1) * window.innerHeight) / 2);
+    panX = Math.max(-maxPanX, Math.min(maxPanX, panX));
+    panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
+
+    screenTransformBox.style.transition = animate ? "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)" : "none";
+    screenTransformBox.style.transform = `translate(${panX}px, ${panY}px) scale(${currentZoom})`;
+  }
+
+  function showZoomToast(text) {
+    if (!screenZoomToast) return;
+    screenZoomToast.textContent = text;
+    screenZoomToast.classList.add("show");
+    clearTimeout(screenZoomToast._timer);
+    screenZoomToast._timer = setTimeout(() => {
+      screenZoomToast.classList.remove("show");
+    }, 1800);
+  }
+
+  function setScreenZoom(newZoom, centerX, centerY, animate = true) {
+    const clampedZoom = Math.max(1.0, Math.min(3.5, newZoom));
+    if (clampedZoom === 1.0) {
+      panX = 0;
+      panY = 0;
+    } else if (centerX !== undefined && centerY !== undefined) {
+      const zoomDelta = clampedZoom - currentZoom;
+      panX -= (centerX - window.innerWidth / 2) * (zoomDelta / currentZoom) * 0.4;
+      panY -= (centerY - window.innerHeight / 2) * (zoomDelta / currentZoom) * 0.4;
+    }
+    currentZoom = clampedZoom;
+    applyScreenTransform(animate);
+    if (screenFitLabel) {
+      screenFitLabel.textContent = currentZoom > 1.05 ? `${Math.round(currentZoom * 100)}%` : "Fit";
+    }
+    showZoomToast(`${Math.round(currentZoom * 100)}% View • ${currentZoom > 1.0 ? "Drag to Pan" : "Pinch to Zoom"}`);
+  }
+
+  async function updateScreenMicState(wantLive) {
+    screenMicLive = wantLive;
+    if (wantLive) {
+      try {
+        if (!rtcMicStream) {
+          rtcMicStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          if (rtcPeerConnection) {
+            rtcMicStream.getAudioTracks().forEach((track) => {
+              rtcPeerConnection.addTrack(track, rtcMicStream);
+            });
+          }
+        } else {
+          rtcMicStream.getAudioTracks().forEach((t) => (t.enabled = true));
+        }
+        if (btnToggleScreenMic) {
+          btnToggleScreenMic.classList.add("active");
+          if (screenMicLabel) screenMicLabel.textContent = "Mic: LIVE";
+        }
+      } catch (err) {
+        console.warn("[Screen Mic error]", err);
+        screenMicLive = false;
+        if (btnToggleScreenMic) {
+          btnToggleScreenMic.classList.remove("active");
+          if (screenMicLabel) screenMicLabel.textContent = "Mic: OFF";
+        }
+      }
+    } else {
+      if (rtcMicStream) {
+        rtcMicStream.getAudioTracks().forEach((t) => (t.enabled = false));
+      }
+      if (btnToggleScreenMic) {
+        btnToggleScreenMic.classList.remove("active");
+        if (screenMicLabel) screenMicLabel.textContent = "Mic: OFF";
+      }
+    }
+  }
+
+  if (btnToggleScreenMic) {
+    btnToggleScreenMic.addEventListener("click", () => {
+      updateScreenMicState(!screenMicLive);
+    });
+  }
+
+  if (btnToggleScreenFit) {
+    btnToggleScreenFit.addEventListener("click", () => {
+      if (currentZoom > 1.05) {
+        setScreenZoom(1.0);
+      } else {
+        setScreenZoom(1.35);
+      }
+    });
+  }
 
   async function startWebRTCScreen() {
     try {
       if (rtcPeerConnection) {
         rtcPeerConnection.close();
       }
+
+      // Reset Zoom & Pan
+      currentZoom = 1.0;
+      panX = 0;
+      panY = 0;
+      applyScreenTransform(false);
+      if (screenFitLabel) screenFitLabel.textContent = "Fit";
+
+      // Ensure Mic is MUTED by default when starting
+      updateScreenMicState(false);
 
       rtcPeerConnection = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -794,24 +1034,6 @@
 
       // Add transceiver to receive 60 FPS video
       rtcPeerConnection.addTransceiver("video", { direction: "recvonly" });
-
-      // Request phone microphone stream to stream into laptop voice agent
-      try {
-        rtcMicStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-        rtcMicStream.getAudioTracks().forEach((track) => {
-          rtcPeerConnection.addTrack(track, rtcMicStream);
-        });
-        const pill = document.getElementById("screenAudioPill");
-        if (pill) pill.style.display = "inline-flex";
-      } catch (micErr) {
-        console.warn("[WebRTC mic permission skipped, proceeding with video]", micErr);
-      }
 
       rtcPeerConnection.ontrack = (event) => {
         if (event.track.kind === "video" && screenStreamVideo) {
@@ -836,9 +1058,9 @@
       if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
       const answer = await res.json();
       await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log("[WebRTC] Connected 60 FPS screen and mobile mic!");
+      console.log("[WebRTC] Connected 60 FPS screen mirror (Mic Muted by Default)!");
     } catch (err) {
-      console.warn("[WebRTC connection failed, falling back to high-speed stream]", err);
+      console.warn("[WebRTC connection failed, falling back to stream]", err);
       if (screenStreamVideo) screenStreamVideo.style.display = "none";
       if (screenStreamImg) {
         screenStreamImg.style.display = "block";
@@ -848,6 +1070,7 @@
   }
 
   function stopWebRTCScreen() {
+    updateScreenMicState(false);
     if (rtcMicStream) {
       rtcMicStream.getTracks().forEach((t) => t.stop());
       rtcMicStream = null;
@@ -891,44 +1114,211 @@
 
   btnToggleTouchClicks.addEventListener("click", () => {
     touchClicksEnabled = !touchClicksEnabled;
-    touchClickLabel.textContent = touchClicksEnabled ? "Touch Clicks: ON" : "Touch Clicks: OFF";
+    touchClickLabel.textContent = touchClicksEnabled ? "Touch" : "Touch: OFF";
     btnToggleTouchClicks.classList.toggle("active", touchClicksEnabled);
   });
 
-  function handleScreenClick(e) {
-    if (!touchClicksEnabled) return;
+  const screenViewportWrap = document.getElementById("screenViewportWrap");
+  let touchStartTime = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchMoved = false;
+
+  function calculateVideoRenderedBounds() {
     const target = (screenStreamVideo && screenStreamVideo.style.display !== "none")
       ? screenStreamVideo
       : screenStreamImg;
-    const rect = target.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    if (!target) return null;
 
-    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+    const wrap = screenViewportWrap || target.parentElement;
+    if (!wrap) return null;
+    const wrapRect = wrap.getBoundingClientRect();
+
+    // Get true intrinsic video resolution
+    let videoW = target.videoWidth || (target.naturalWidth || 1920);
+    let videoH = target.videoHeight || (target.naturalHeight || 1080);
+    if (!videoW || !videoH) {
+      videoW = 1920;
+      videoH = 1080;
+    }
+    const videoAR = videoW / videoH;
+    const containerAR = wrapRect.width / wrapRect.height;
+
+    let renderedW, renderedH, offsetX, offsetY;
+
+    if (containerAR < videoAR) {
+      // Letterboxed top and bottom (e.g. portrait phone)
+      renderedW = wrapRect.width;
+      renderedH = wrapRect.width / videoAR;
+      offsetX = 0;
+      offsetY = (wrapRect.height - renderedH) / 2;
+    } else {
+      // Pillarboxed left and right (e.g. landscape)
+      renderedH = wrapRect.height;
+      renderedW = wrapRect.height * videoAR;
+      offsetX = (wrapRect.width - renderedW) / 2;
+      offsetY = 0;
+    }
+
+    return {
+      wrapRect,
+      renderedW,
+      renderedH,
+      offsetX,
+      offsetY,
+    };
+  }
+
+  function sendRemoteClick(clientX, clientY, button = "left") {
+    if (!touchClicksEnabled) return;
+
+    const bounds = calculateVideoRenderedBounds();
+    if (!bounds) return;
+
+    const { wrapRect, renderedW, renderedH, offsetX, offsetY } = bounds;
+
+    // Untransform coordinate based on currentZoom and panX, panY
+    const centerX = wrapRect.left + wrapRect.width / 2;
+    const centerY = wrapRect.top + wrapRect.height / 2;
+
+    const unscaledX = (clientX - centerX - panX) / currentZoom + wrapRect.width / 2;
+    const unscaledY = (clientY - centerY - panY) / currentZoom + wrapRect.height / 2;
+
+    // Convert coordinate relative to actual rendered video frame
+    const frameX = unscaledX - offsetX;
+    const frameY = unscaledY - offsetY;
+
+    // If tap is far outside the video frame in the black bars, ignore
+    if (frameX < -25 || frameX > renderedW + 25 || frameY < -25 || frameY > renderedH + 25) {
       return;
     }
 
-    const normX = (clientX - rect.left) / rect.width;
-    const normY = (clientY - rect.top) / rect.height;
+    const normX = Math.max(0.0, Math.min(1.0, frameX / renderedW));
+    const normY = Math.max(0.0, Math.min(1.0, frameY / renderedH));
 
-    // Visual ripple feedback
-    if (screenClickRipple) {
-      screenClickRipple.style.left = `${clientX}px`;
-      screenClickRipple.style.top = `${clientY}px`;
+    // Show visual click ripple at exact touch contact point under user's finger
+    if (screenClickRipple && screenViewportWrap) {
+      screenClickRipple.style.left = `${clientX - wrapRect.left}px`;
+      screenClickRipple.style.top = `${clientY - wrapRect.top}px`;
       screenClickRipple.classList.remove("animate");
       void screenClickRipple.offsetWidth;
       screenClickRipple.classList.add("animate");
     }
 
+    console.log(`[Remote Click] Sending ${button} click at normalized (${normX.toFixed(4)}, ${normY.toFixed(4)})`);
+
+    // 1. Send via WebRTC DataChannel (sub-millisecond instant execution)
+    let sent = false;
     if (rtcDataChannel && rtcDataChannel.readyState === "open") {
-      rtcDataChannel.send(JSON.stringify({ type: "click", x: normX, y: normY, button: "left" }));
-    } else {
-      sendWS("screen_click", { x: normX, y: normY, button: "left" });
+      try {
+        rtcDataChannel.send(JSON.stringify({ type: "click", x: normX, y: normY, button }));
+        sent = true;
+      } catch (e) {}
     }
+
+    // 2. Also send via WebSocket
+    if (!sent) {
+      sendWS("screen_click", { x: normX, y: normY, button });
+    }
+
+    // 3. HTTP API fallback for absolute guaranteed execution
+    fetch("/api/screen/click", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ x: normX, y: normY, button }),
+    }).catch(() => {});
   }
 
-  if (screenStreamVideo) screenStreamVideo.addEventListener("click", handleScreenClick);
-  if (screenStreamImg) screenStreamImg.addEventListener("click", handleScreenClick);
+  if (screenViewportWrap) {
+    // Touch Events: Pinch-to-Zoom, 1-finger Pan, and Instant Tap Detection
+    screenViewportWrap.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        isDraggingScreen = false;
+        touchMoved = true;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialPinchDistance = Math.hypot(dx, dy);
+        initialZoom = currentZoom;
+      } else if (e.touches.length === 1) {
+        startTouchX = e.touches[0].clientX;
+        startTouchY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = performance.now();
+        touchMoved = false;
+        isDraggingScreen = currentZoom > 1.05;
+      }
+    }, { passive: true });
+
+    screenViewportWrap.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2 && initialPinchDistance > 0) {
+        touchMoved = true;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDistance = Math.hypot(dx, dy);
+        const scaleFactor = currentDistance / initialPinchDistance;
+        const newZoom = Math.max(1.0, Math.min(3.5, initialZoom * scaleFactor));
+        currentZoom = newZoom;
+        applyScreenTransform(false);
+        if (screenFitLabel) {
+          screenFitLabel.textContent = currentZoom > 1.05 ? `${Math.round(currentZoom * 100)}%` : "Fit";
+        }
+      } else if (e.touches.length === 1) {
+        const moveX = e.touches[0].clientX - startTouchX;
+        const moveY = e.touches[0].clientY - startTouchY;
+        const totalDist = Math.hypot(e.touches[0].clientX - touchStartX, e.touches[0].clientY - touchStartY);
+        if (totalDist > 8) {
+          touchMoved = true;
+        }
+        if (isDraggingScreen) {
+          panX += moveX;
+          panY += moveY;
+          startTouchX = e.touches[0].clientX;
+          startTouchY = e.touches[0].clientY;
+          applyScreenTransform(false);
+        }
+      }
+    }, { passive: true });
+
+    screenViewportWrap.addEventListener("touchend", (e) => {
+      if (e.touches.length < 2) {
+        initialPinchDistance = 0;
+      }
+      if (e.touches.length === 0) {
+        isDraggingScreen = false;
+        applyScreenTransform(true);
+      }
+
+      // Handle Tap Click on phone touch
+      if (!touchMoved && e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const tapDuration = performance.now() - touchStartTime;
+        if (tapDuration < 350) {
+          const now = performance.now();
+          if (now - lastTapTime < 320) {
+            // Double tap: toggle zoom in/out
+            if (currentZoom > 1.05) {
+              setScreenZoom(1.0);
+            } else {
+              setScreenZoom(2.0, touch.clientX, touch.clientY);
+            }
+            lastTapTime = 0;
+            return;
+          }
+          lastTapTime = now;
+          sendRemoteClick(touch.clientX, touch.clientY, "left");
+        }
+      }
+    });
+
+    // Desktop/Mouse Click Handler
+    screenViewportWrap.addEventListener("click", (e) => {
+      // If triggered by mouse (detail > 0)
+      if (e.pointerType === "mouse" || (!e.pointerType && e.clientX)) {
+        sendRemoteClick(e.clientX, e.clientY, "left");
+      }
+    });
+  }
 
   // ========================================================================
   // Phone Microphone & In-Browser Dictation

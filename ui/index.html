@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Voice Agent — Autonomous Local AI Command Center</title>
   
   <!-- Modern Typography Fonts -->
@@ -197,13 +197,14 @@
         <div class="controls-stage">
           <div class="primary-voice-controls">
             <button class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold Spacebar to Talk">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="23"></line>
                 <line x1="8" y1="23" x2="16" y2="23"></line>
               </svg>
-              <span>Hold [Space] to Talk</span>
+              <span>Hold to Talk</span>
+              <kbd class="kbd-badge">Space</kbd>
             </button>
           </div>
 
@@ -346,26 +347,45 @@
         <div class="screen-toolbar-left">
           <div class="screen-live-badge">
             <span class="live-pulse-dot"></span>
-            <span>60 FPS WEBRTC</span>
+            <span id="screenLiveBadgeText">60 FPS</span>
           </div>
-          <span class="screen-stat-pill" id="screenFpsPill">60 FPS (Low Latency)</span>
-          <span class="screen-audio-pill" id="screenAudioPill">
-            <span class="mic-dot-live"></span>
-            <span>PHONE MIC: LIVE</span>
-          </span>
+
+          <!-- Mute / Unmute Phone Mic Button (Muted by Default) -->
+          <button class="screen-tool-btn mic-btn" id="btnToggleScreenMic" title="Toggle Phone Microphone (Muted by default)">
+            <svg class="mic-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <span id="screenMicLabel">Mic: OFF</span>
+          </button>
         </div>
 
         <div class="screen-toolbar-right">
-          <button class="screen-tool-btn" id="btnToggleTouchClicks" title="Toggle Remote Touch-Clicks on Laptop">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Fit / Zoom Toggle -->
+          <button class="screen-tool-btn" id="btnToggleScreenFit" title="Toggle Fit Screen / Zoom">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+            <span id="screenFitLabel">Fit</span>
+          </button>
+
+          <!-- Touch Click Toggle -->
+          <button class="screen-tool-btn active" id="btnToggleTouchClicks" title="Toggle Touch Clicks on Laptop">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
             </svg>
-            <span id="touchClickLabel">Touch Clicks: ON</span>
+            <span id="touchClickLabel">Touch</span>
           </button>
 
+          <!-- Fullscreen Toggle -->
           <button class="screen-tool-btn" id="btnScreenFullscreen" title="Toggle Fullscreen">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
             </svg>
           </button>
@@ -374,11 +394,15 @@
         </div>
       </div>
 
-      <!-- Screen Viewport & WebRTC Hardware Video -->
+      <!-- Screen Viewport & WebRTC Hardware Video (Zero-Trimming Container) -->
       <div class="screen-viewport-wrap" id="screenViewportWrap">
-        <video id="screenStreamVideo" class="screen-stream-video" autoplay playsinline muted></video>
-        <img id="screenStreamImg" class="screen-stream-img" alt="Laptop Display Live Mirror" style="display: none;">
-        <div class="screen-click-ripple" id="screenClickRipple"></div>
+        <div class="screen-canvas-transform-box" id="screenTransformBox">
+          <video id="screenStreamVideo" class="screen-stream-video" autoplay playsinline muted></video>
+          <img id="screenStreamImg" class="screen-stream-img" alt="Laptop Display Live Mirror" style="display: none;">
+          <div class="screen-click-ripple" id="screenClickRipple"></div>
+        </div>
+
+        <div class="screen-zoom-toast" id="screenZoomToast">Pinch to Zoom • Double Tap to Reset</div>
       </div>
 
       <!-- Floating Remote Dictation Bar (Thumb-Friendly on Phone) -->
@@ -392,7 +416,7 @@
               <line x1="8" y1="23" x2="16" y2="23"></line>
             </svg>
           </div>
-          <span id="screenDictateLabel">Hold or Speak to Dictate</span>
+          <span id="screenDictateLabel">Hold to Dictate</span>
         </button>
       </div>
     </div>
@@ -444,69 +468,150 @@
     </div>
 
     <!-- ====================================================================
-         SETTINGS MODAL
+         PREMIUM AGENT SETTINGS & PREFERENCES MODAL
          ==================================================================== -->
     <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="settings-card">
+        <!-- Settings Header -->
         <div class="settings-header">
-          <h3 id="settingsTitle">Agent Settings & Diagnostics</h3>
-          <button class="icon-btn" id="btnCloseSettings" title="Close">✕</button>
-        </div>
-        <div class="settings-body">
-          <div class="form-group">
-            <label class="form-label" for="settingModel">Ollama Intelligence Model</label>
-            <span class="form-sublabel">Local tool-calling model running on Ollama</span>
-            <select class="form-select" id="settingModel"></select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="settingTtsBackend">Text-to-Speech Engine</label>
-            <span class="form-sublabel">Piper (offline neural), Edge (online natural), or SAPI (robotic)</span>
-            <select class="form-select" id="settingTtsBackend">
-              <option value="auto">Auto (Piper → Edge → SAPI)</option>
-              <option value="piper">Piper (Offline Neural)</option>
-              <option value="edge">Microsoft Edge (Online Ultra-Natural)</option>
-              <option value="sapi">Windows SAPI (Instant Built-in)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <label class="form-label" for="settingVoice">Spoken Voice</label>
-              <button class="btn-secondary" id="btnTestVoice" style="padding: 4px 10px; font-size: 11px;">Test Voice</button>
+          <div class="settings-header-left">
+            <div class="settings-icon-badge">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
             </div>
-            <select class="form-select" id="settingVoice"></select>
-          </div>
-
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between;">
-              <label class="form-label" for="settingRate">Speaking Rate</label>
-              <span class="form-sublabel" id="rateValueDisplay">185 wpm</span>
+            <div>
+              <h3 id="settingsTitle">Agent Settings & Diagnostics</h3>
+              <p class="settings-subtitle">Manage Ollama AI, neural voices, and safety policies</p>
             </div>
-            <input type="range" class="form-range" id="settingRate" min="130" max="230" value="185">
           </div>
-
-          <div class="form-group">
-            <label class="form-label" for="settingConfirmMode">Safety Confirmation Gate</label>
-            <span class="form-sublabel">How potentially risky commands are approved</span>
-            <select class="form-select" id="settingConfirmMode">
-              <option value="terminal">Interactive UI / Terminal Prompt</option>
-              <option value="voice">Spoken Voice (Say Yes/No)</option>
-              <option value="auto">Auto-Approve (Unrestricted)</option>
-              <option value="deny">Always Deny (Read-only)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="settingShell">Default Windows Shell</label>
-            <select class="form-select" id="settingShell">
-              <option value="powershell">PowerShell 7</option>
-              <option value="cmd">Command Prompt (cmd.exe)</option>
-            </select>
-          </div>
+          <button class="icon-btn" id="btnCloseSettings" title="Close (Esc)" aria-label="Close Settings">✕</button>
         </div>
-        <div class="confirmation-actions">
-          <button class="btn-primary-confirm" id="btnSaveSettings">Save Preferences</button>
+
+        <!-- Settings Scroll Body -->
+        <div class="settings-body custom-scroll">
+          
+          <!-- Section 1: Local Intelligence -->
+          <div class="settings-section-card">
+            <div class="settings-section-header">
+              <span class="section-icon">🧠</span>
+              <span class="section-title">Local Intelligence & Ollama</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="settingModel">Ollama LLM Model</label>
+              <span class="form-sublabel">Local tool-calling neural model running via Ollama</span>
+              <div class="select-wrap">
+                <select class="form-select" id="settingModel"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Neural Voice & TTS -->
+          <div class="settings-section-card">
+            <div class="settings-section-header">
+              <span class="section-icon">🎙️</span>
+              <span class="section-title">Voice & Speech Synthesis</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="settingTtsBackend">Voice Engine Backend</label>
+              <span class="form-sublabel">Piper (offline neural), Edge (online natural), or SAPI (robotic)</span>
+              <div class="select-wrap">
+                <select class="form-select" id="settingTtsBackend">
+                  <option value="auto">Auto (Piper → Edge → SAPI)</option>
+                  <option value="piper">Piper (Offline Neural)</option>
+                  <option value="edge">Microsoft Edge (Online Natural)</option>
+                  <option value="sapi">Windows SAPI (Built-in)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <div>
+                  <label class="form-label" for="settingVoice">Active Neural Voice</label>
+                  <span class="form-sublabel">Character and accent profile for spoken replies</span>
+                </div>
+                <button class="btn-secondary btn-mini" id="btnTestVoice" title="Preview selected voice">
+                  <span>▶ Test Voice</span>
+                </button>
+              </div>
+              <div class="select-wrap">
+                <select class="form-select" id="settingVoice"></select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="form-label" for="settingRate">Speaking Rate</label>
+                <span class="badge-rate-pill" id="rateValueDisplay">185 wpm</span>
+              </div>
+              <div class="range-slider-wrap">
+                <input type="range" class="form-range" id="settingRate" min="130" max="230" value="185">
+                <div class="range-scale-labels">
+                  <span>130 (Calm)</span>
+                  <span>185 (Normal)</span>
+                  <span>230 (Fast)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="settingSpeakerTarget">Speaker Output Destination</label>
+              <span class="form-sublabel">Controls where the spoken response plays</span>
+              <div class="select-wrap">
+                <select class="form-select" id="settingSpeakerTarget">
+                  <option value="auto">Auto (Originating Device: Phone responds on phone, Laptop on laptop)</option>
+                  <option value="phone">Phone Speaker Only</option>
+                  <option value="laptop">Laptop Speaker Only</option>
+                  <option value="both">Both Phone & Laptop Speakers</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Safety & Environment -->
+          <div class="settings-section-card">
+            <div class="settings-section-header">
+              <span class="section-icon">🛡️</span>
+              <span class="section-title">Safety & System Execution</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="settingConfirmMode">Safety Confirmation Gate</label>
+              <span class="form-sublabel">Policy applied before running risky commands</span>
+              <div class="select-wrap">
+                <select class="form-select" id="settingConfirmMode">
+                  <option value="terminal">Interactive Modal & Terminal Prompt (Recommended)</option>
+                  <option value="voice">Spoken Voice Confirmation (Say Yes/No)</option>
+                  <option value="auto">Auto-Approve (Unrestricted Execution)</option>
+                  <option value="deny">Always Deny (Read-only Guardrail)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="settingShell">Default Execution Shell</label>
+              <span class="form-sublabel">Terminal environment for local commands</span>
+              <div class="select-wrap">
+                <select class="form-select" id="settingShell">
+                  <option value="powershell">PowerShell 7</option>
+                  <option value="cmd">Command Prompt (cmd.exe)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Settings Footer Actions -->
+        <div class="settings-footer">
+          <button class="btn-secondary" id="btnCancelSettings" style="border-radius: var(--radius-sm);">Cancel</button>
+          <button class="btn-save-settings" id="btnSaveSettings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Save & Apply</span>
+          </button>
         </div>
       </div>
     </div>

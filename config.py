@@ -61,6 +61,8 @@ class Config:
     edge_voice: str = _env("EDGE_VOICE", "en-US-AvaNeural")
     piper_model: str = _env("PIPER_MODEL", "")         # full path to a .onnx voice
     piper_dir: str = _env("PIPER_DIR", "")             # defaults to ./voices
+    # Audio speaker destination: auto (originating device: phone responds on phone, laptop responds on laptop) | phone | laptop | both
+    tts_speaker_target: str = _env("TTS_TARGET", "auto")
 
     # ---------------- Behaviour ----------------
     # terminal = type y/n ; voice = say yes/no ; auto = never ask (dangerous) ; deny = never run

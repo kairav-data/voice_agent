@@ -206,14 +206,20 @@ def find_piper_model(cfg: Config) -> str | None:
     voices_dir = cfg.piper_dir or os.path.join(os.path.dirname(__file__), "voices")
     if not os.path.isdir(voices_dir):
         return None
-    wanted = (cfg.tts_voice or "").lower()
     models = sorted(f for f in os.listdir(voices_dir) if f.endswith(".onnx"))
-    for name in models:
-        if wanted and wanted in name.lower():
-            return os.path.join(voices_dir, name)
-    if wanted:
+    if not models:
         return None
-    return os.path.join(voices_dir, models[0]) if models else None
+    wanted = (cfg.tts_voice or "").lower().strip()
+    if wanted:
+        for name in models:
+            if wanted in name.lower():
+                return os.path.join(voices_dir, name)
+        # If wanted is an Edge voice or backend is auto, fall back to first available piper voice
+        backend = (cfg.tts_backend or "auto").lower()
+        if "neural" in wanted or backend == "auto":
+            return os.path.join(voices_dir, models[0])
+        return None
+    return os.path.join(voices_dir, models[0])
 
 
 class _PiperBackend:
@@ -382,6 +388,8 @@ class Speaker:
         self.cfg = cfg
         self.on_state = on_state
         self.backend_name = "none"
+        self._backend = None
+        self._synth_lock = threading.Lock()
         self._q: queue.Queue[str | None] = queue.Queue()
         self._streams: dict[int, sd.OutputStream] = {}
         self._idle = threading.Event()
@@ -459,6 +467,7 @@ class Speaker:
 
     def _run(self) -> None:
         backend = self._make_backend()
+        self._backend = backend
         if backend is None:
             print("[tts] no speech backend available, replies will be text only",
                   file=sys.stderr)
@@ -528,6 +537,40 @@ class Speaker:
     def close(self) -> None:
         if self._thread is not None:
             self._q.put(None)
+
+    def synth_wav_bytes(self, text: str) -> tuple[bytes, int] | None:
+        """Synthesizes text to 16-bit PCM WAV bytes in memory without local playback.
+        
+        Enables streaming audio directly to mobile/remote clients (phone speaker).
+        """
+        text = clean_for_speech(text)
+        if not text:
+            return None
+        self._ready.wait(timeout=3.0)
+        backend = getattr(self, "_backend", None)
+        if backend is None or not hasattr(backend, "synth"):
+            return None
+        with self._synth_lock:
+            try:
+                chunks = split_sentences(text)
+                audio_parts = []
+                sample_rate = 22050
+                for chunk in chunks:
+                    audio, chunk_rate = backend.synth(chunk)
+                    if audio.size > 0:
+                        audio_parts.append(audio)
+                        sample_rate = chunk_rate
+                if not audio_parts:
+                    return None
+                full_audio = np.concatenate(audio_parts)
+                import io
+                import soundfile as sf
+                buf = io.BytesIO()
+                sf.write(buf, full_audio, sample_rate, format="WAV", subtype="PCM_16")
+                return buf.getvalue(), sample_rate
+            except Exception as exc:
+                print(f"[tts synth_wav error]: {exc}", file=sys.stderr)
+                return None
 
 
 # --------------------------------------------------------------------------- #

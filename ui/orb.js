@@ -1,11 +1,10 @@
 /**
- * VoiceOrb — High-Performance 60 FPS Canvas Voice Visualization
+ * VoiceOrb — World-Class 60 FPS Canvas Voice Visualization
  * 
- * Supports 11 explicit system states:
+ * Cinematic, volumetric, organic fluid plasma orb with real-time audio reactivity.
+ * Features 11 explicit system states:
  *   idle, listening, hearing, processing, thinking, tool,
  *   confirmation, executing, speaking, success, error
- * 
- * Accurately responds to real-time audio amplitude from the mic & TTS.
  */
 
 class VoiceOrb {
@@ -22,22 +21,110 @@ class VoiceOrb {
 
     // Particle constellation
     this.particles = [];
-    this.numParticles = 48;
+    this.numParticles = 54;
     this._initParticles();
 
-    // Colors per state
+    // Luminous Color Palettes per State
     this.stateColors = {
-      idle: { core: "#00F0FF", glow: "rgba(0, 240, 255, 0.25)", ring: "rgba(0, 240, 255, 0.4)" },
-      listening: { core: "#00F0FF", glow: "rgba(0, 240, 255, 0.45)", ring: "rgba(0, 240, 255, 0.7)" },
-      hearing: { core: "#38BDF8", glow: "rgba(56, 189, 248, 0.55)", ring: "rgba(56, 189, 248, 0.85)" },
-      processing: { core: "#6366F1", glow: "rgba(99, 102, 241, 0.4)", ring: "rgba(99, 102, 241, 0.6)" },
-      thinking: { core: "#8B5CF6", glow: "rgba(139, 92, 246, 0.5)", ring: "rgba(168, 85, 247, 0.75)" },
-      tool: { core: "#F59E0B", glow: "rgba(245, 158, 11, 0.45)", ring: "rgba(245, 158, 11, 0.7)" },
-      confirmation: { core: "#FB923C", glow: "rgba(251, 146, 60, 0.5)", ring: "rgba(251, 146, 60, 0.8)" },
-      executing: { core: "#3B82F6", glow: "rgba(59, 130, 246, 0.5)", ring: "rgba(245, 158, 11, 0.8)" },
-      speaking: { core: "#06B6D4", glow: "rgba(6, 182, 212, 0.5)", ring: "rgba(56, 189, 248, 0.8)" },
-      success: { core: "#10B981", glow: "rgba(16, 185, 129, 0.5)", ring: "rgba(16, 185, 129, 0.8)" },
-      error: { core: "#EF4444", glow: "rgba(239, 68, 68, 0.5)", ring: "rgba(239, 68, 68, 0.8)" },
+      idle: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#00F0FF",
+        coreOuter: "rgba(0, 163, 255, 0.35)",
+        coreDeep: "rgba(4, 18, 38, 0.95)",
+        glow: "rgba(0, 240, 255, 0.22)",
+        ring: "rgba(0, 240, 255, 0.45)",
+        particle: "rgba(0, 240, 255, 0.7)",
+      },
+      listening: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#00F0FF",
+        coreOuter: "rgba(0, 200, 255, 0.5)",
+        coreDeep: "rgba(3, 24, 48, 0.95)",
+        glow: "rgba(0, 240, 255, 0.38)",
+        ring: "rgba(0, 240, 255, 0.75)",
+        particle: "rgba(0, 240, 255, 0.85)",
+      },
+      hearing: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#38BDF8",
+        coreOuter: "rgba(14, 165, 233, 0.65)",
+        coreDeep: "rgba(4, 30, 58, 0.95)",
+        glow: "rgba(56, 189, 248, 0.5)",
+        ring: "rgba(56, 189, 248, 0.9)",
+        particle: "rgba(125, 211, 252, 0.9)",
+      },
+      processing: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#6366F1",
+        coreOuter: "rgba(99, 102, 241, 0.5)",
+        coreDeep: "rgba(18, 16, 48, 0.95)",
+        glow: "rgba(99, 102, 241, 0.35)",
+        ring: "rgba(129, 140, 248, 0.7)",
+        particle: "rgba(165, 180, 252, 0.8)",
+      },
+      thinking: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#8B5CF6",
+        coreOuter: "rgba(168, 85, 247, 0.6)",
+        coreDeep: "rgba(25, 12, 54, 0.95)",
+        glow: "rgba(139, 92, 246, 0.45)",
+        ring: "rgba(192, 132, 252, 0.85)",
+        particle: "rgba(216, 180, 254, 0.9)",
+      },
+      tool: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#F59E0B",
+        coreOuter: "rgba(217, 119, 6, 0.55)",
+        coreDeep: "rgba(42, 22, 4, 0.95)",
+        glow: "rgba(245, 158, 11, 0.4)",
+        ring: "rgba(251, 191, 36, 0.8)",
+        particle: "rgba(252, 211, 77, 0.85)",
+      },
+      confirmation: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#FB923C",
+        coreOuter: "rgba(234, 88, 12, 0.65)",
+        coreDeep: "rgba(48, 18, 5, 0.95)",
+        glow: "rgba(251, 146, 60, 0.5)",
+        ring: "rgba(253, 186, 116, 0.9)",
+        particle: "rgba(254, 215, 170, 0.9)",
+      },
+      executing: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#3B82F6",
+        coreOuter: "rgba(245, 158, 11, 0.6)",
+        coreDeep: "rgba(10, 25, 48, 0.95)",
+        glow: "rgba(59, 130, 246, 0.45)",
+        ring: "rgba(245, 158, 11, 0.85)",
+        particle: "rgba(96, 165, 250, 0.85)",
+      },
+      speaking: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#06B6D4",
+        coreOuter: "rgba(8, 145, 178, 0.65)",
+        coreDeep: "rgba(4, 32, 44, 0.95)",
+        glow: "rgba(6, 182, 212, 0.45)",
+        ring: "rgba(34, 211, 238, 0.85)",
+        particle: "rgba(103, 232, 249, 0.9)",
+      },
+      success: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#10B981",
+        coreOuter: "rgba(5, 150, 105, 0.65)",
+        coreDeep: "rgba(3, 36, 24, 0.95)",
+        glow: "rgba(16, 185, 129, 0.45)",
+        ring: "rgba(52, 211, 153, 0.85)",
+        particle: "rgba(110, 231, 183, 0.9)",
+      },
+      error: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#EF4444",
+        coreOuter: "rgba(220, 38, 38, 0.6)",
+        coreDeep: "rgba(48, 8, 8, 0.95)",
+        glow: "rgba(239, 68, 68, 0.45)",
+        ring: "rgba(248, 113, 113, 0.85)",
+        particle: "rgba(252, 165, 165, 0.9)",
+      },
     };
 
     this.resize();
@@ -51,10 +138,11 @@ class VoiceOrb {
     for (let i = 0; i < this.numParticles; i++) {
       this.particles.push({
         angle: Math.random() * Math.PI * 2,
-        radiusOffset: (Math.random() - 0.5) * 40,
-        speed: 0.005 + Math.random() * 0.015,
-        size: 1.2 + Math.random() * 2.2,
-        alpha: 0.2 + Math.random() * 0.6,
+        radiusMult: 0.9 + Math.random() * 0.45,
+        speed: (0.004 + Math.random() * 0.012) * (Math.random() > 0.5 ? 1 : -1),
+        size: 1.0 + Math.random() * 2.2,
+        alpha: 0.25 + Math.random() * 0.65,
+        wobbleSpeed: 1 + Math.random() * 2,
       });
     }
   }
@@ -62,7 +150,7 @@ class VoiceOrb {
   resize() {
     if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.width = rect.width;
     this.height = rect.height;
     this.canvas.width = this.width * dpr;
@@ -70,6 +158,7 @@ class VoiceOrb {
     this.ctx.scale(dpr, dpr);
     this.centerX = this.width / 2;
     this.centerY = this.height / 2;
+    // Balanced baseRadius providing plenty of breathing room for expanding harmonics
     this.baseRadius = Math.min(this.width, this.height) * 0.26;
   }
 
@@ -84,12 +173,12 @@ class VoiceOrb {
   }
 
   animate(currentTime) {
-    const dt = (currentTime - this.lastFrameTime) / 1000;
+    const dt = Math.min((currentTime - this.lastFrameTime) / 1000, 0.1);
     this.lastFrameTime = currentTime;
     this.time += dt;
 
-    // Smooth audio level interpolation
-    this.audioLevel += (this.targetAudioLevel - this.audioLevel) * 0.25;
+    // Smooth audio reactivity interpolation with decay
+    this.audioLevel += (this.targetAudioLevel - this.audioLevel) * 0.22;
 
     this.render();
     requestAnimationFrame(this.animate);
@@ -102,89 +191,142 @@ class VoiceOrb {
     ctx.clearRect(0, 0, this.width, this.height);
     const colors = this.stateColors[this.state] || this.stateColors.idle;
 
-    // Dynamic scale driven by state and mic amplitude
-    let pulse = Math.sin(this.time * 2.2) * 0.05;
-    let amplitudeScale = this.audioLevel * 0.35;
-    let currentRadius = this.baseRadius * (1 + pulse + amplitudeScale);
+    // Subtle natural breathing oscillation (period: ~3.8 seconds)
+    const breath = Math.sin(this.time * 1.65) * 0.035;
+    const ampBoost = this.audioLevel * 0.35;
+    let radius = this.baseRadius * (1 + breath + ampBoost);
 
-    if (this.state === "listening") {
-      currentRadius *= 1.05;
-    } else if (this.state === "hearing") {
-      currentRadius *= 1.12;
-    } else if (this.state === "thinking") {
-      currentRadius *= 0.98;
-    }
+    if (this.state === "listening") radius *= 1.05;
+    if (this.state === "hearing") radius *= 1.10;
+    if (this.state === "speaking") radius *= 1.08;
 
-    // 1. Ambient Outer Luminous Glow
+    // 1. Atmospheric Volumetric Back-Glow (Deep Diffusion)
+    const glowRadius = radius * 1.70;
     const glowGrad = ctx.createRadialGradient(
-      this.centerX, this.centerY, currentRadius * 0.2,
-      this.centerX, this.centerY, currentRadius * 1.8
+      this.centerX, this.centerY, radius * 0.25,
+      this.centerX, this.centerY, glowRadius
     );
     glowGrad.addColorStop(0, colors.glow);
-    glowGrad.addColorStop(0.5, colors.glow.replace(/[\d.]+\)$/, "0.08)"));
+    glowGrad.addColorStop(0.45, colors.glow.replace(/[\d.]+\)$/, "0.07)"));
     glowGrad.addColorStop(1, "transparent");
 
     ctx.fillStyle = glowGrad;
     ctx.beginPath();
-    ctx.arc(this.centerX, this.centerY, currentRadius * 1.8, 0, Math.PI * 2);
+    ctx.arc(this.centerX, this.centerY, glowRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. Orbital Particles
-    this._renderParticles(ctx, currentRadius, colors);
+    // 2. Swirling Quantum Micro-Particles
+    this._renderParticles(ctx, radius, colors);
 
-    // 3. State-Specific Geometries & Harmonic Waves
+    // 3. State Specific Geometry / Rings
     if (this.state === "thinking") {
-      this._renderThinkingRings(ctx, currentRadius, colors);
+      this._renderThinkingCosmos(ctx, radius, colors);
     } else if (this.state === "tool" || this.state === "executing") {
-      this._renderSegmentedToolRings(ctx, currentRadius, colors);
+      this._renderSegmentedTechRing(ctx, radius, colors);
     } else if (this.state === "speaking") {
-      this._renderSpeakingWaves(ctx, currentRadius, colors);
+      this._renderSpeakingHarmonics(ctx, radius, colors);
     } else {
-      this._renderHarmonicRings(ctx, currentRadius, colors);
+      this._renderAmbientHarmonicRings(ctx, radius, colors);
     }
 
-    // 4. Center Core Sphere
-    const coreGrad = ctx.createRadialGradient(
-      this.centerX - currentRadius * 0.25,
-      this.centerY - currentRadius * 0.25,
-      currentRadius * 0.1,
-      this.centerX,
-      this.centerY,
-      currentRadius
-    );
-    coreGrad.addColorStop(0, "#FFFFFF");
-    coreGrad.addColorStop(0.4, colors.core);
-    coreGrad.addColorStop(0.85, colors.core.replace(/rgb\(/, "rgba(").replace(/\)$/, ", 0.4)"));
-    coreGrad.addColorStop(1, "rgba(6, 8, 13, 0.9)");
+    // 4. Fluid Plasma Membrane Core (Liquid Mercury Deformation)
+    this._renderFluidCore(ctx, radius, colors);
+
+    // 5. Specular 3D Refraction Lens Highlight
+    this._renderSpecularHighlight(ctx, radius);
+
+    // 6. Delicate Equatorial Iris Ring
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.ellipse(this.centerX, this.centerY, radius * 0.58, radius * 0.54, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _renderFluidCore(ctx, radius, colors) {
+    const points = 72;
+    const waveSpeed = this.state === "hearing" ? 4.5 : 2.2;
+    const waveAmp = (this.state === "hearing" ? 12 : 3.5) + this.audioLevel * 16;
 
     ctx.save();
-    ctx.shadowColor = colors.core;
-    ctx.shadowBlur = 18 + this.audioLevel * 24;
+    ctx.shadowColor = colors.coreMid;
+    ctx.shadowBlur = 24 + this.audioLevel * 28;
+
+    // Volumetric 3D Gradient for Core Sphere
+    const coreGrad = ctx.createRadialGradient(
+      this.centerX - radius * 0.32,
+      this.centerY - radius * 0.32,
+      radius * 0.08,
+      this.centerX,
+      this.centerY,
+      radius * 0.95
+    );
+    coreGrad.addColorStop(0, colors.coreCenter);
+    coreGrad.addColorStop(0.25, colors.coreMid);
+    coreGrad.addColorStop(0.65, colors.coreOuter);
+    coreGrad.addColorStop(1.0, colors.coreDeep);
+
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    ctx.arc(this.centerX, this.centerY, currentRadius * 0.72, 0, Math.PI * 2);
+
+    // Harmonic multi-node spline perimeter
+    for (let i = 0; i <= points; i++) {
+      const theta = (i / points) * Math.PI * 2;
+      const wave1 = Math.sin(theta * 3 + this.time * waveSpeed) * waveAmp;
+      const wave2 = Math.cos(theta * 5 - this.time * (waveSpeed * 0.7)) * (waveAmp * 0.45);
+      const r = radius * 0.88 + wave1 + wave2;
+
+      const x = this.centerX + Math.cos(theta) * r;
+      const y = this.centerY + Math.sin(theta) * r;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Subtle edge rim light
+    ctx.strokeStyle = colors.ring;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _renderSpecularHighlight(ctx, radius) {
+    ctx.save();
+    const specGrad = ctx.createRadialGradient(
+      this.centerX - radius * 0.35,
+      this.centerY - radius * 0.35,
+      2,
+      this.centerX - radius * 0.32,
+      this.centerY - radius * 0.32,
+      radius * 0.45
+    );
+    specGrad.addColorStop(0, "rgba(255, 255, 255, 0.75)");
+    specGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.2)");
+    specGrad.addColorStop(1, "transparent");
+
+    ctx.fillStyle = specGrad;
+    ctx.beginPath();
+    ctx.arc(this.centerX - radius * 0.32, this.centerY - radius * 0.32, radius * 0.45, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-
-    // 5. Inner Iris / Aperture Ring
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(this.centerX, this.centerY, currentRadius * 0.4, 0, Math.PI * 2);
-    ctx.stroke();
   }
 
   _renderParticles(ctx, radius, colors) {
-    ctx.fillStyle = colors.core;
-    const speedMult = this.state === "thinking" ? 2.5 : this.state === "hearing" ? 1.8 : 1.0;
+    ctx.fillStyle = colors.particle;
+    const speedMult = this.state === "thinking" ? 2.8 : this.state === "hearing" ? 1.8 : 1.0;
 
     for (let p of this.particles) {
       p.angle += p.speed * speedMult;
-      const r = radius * 1.25 + p.radiusOffset + Math.sin(this.time * 3 + p.angle) * 8;
+      const wobble = Math.sin(this.time * p.wobbleSpeed + p.angle) * 7;
+      const r = radius * p.radiusMult + wobble;
       const x = this.centerX + Math.cos(p.angle) * r;
       const y = this.centerY + Math.sin(p.angle) * r;
 
-      ctx.globalAlpha = p.alpha * (0.6 + this.audioLevel * 0.4);
+      ctx.globalAlpha = p.alpha * (0.45 + this.audioLevel * 0.55);
       ctx.beginPath();
       ctx.arc(x, y, p.size, 0, Math.PI * 2);
       ctx.fill();
@@ -192,20 +334,22 @@ class VoiceOrb {
     ctx.globalAlpha = 1.0;
   }
 
-  _renderHarmonicRings(ctx, radius, colors) {
-    const numRings = 2;
-    for (let i = 0; i < numRings; i++) {
-      const ringRadius = radius * (1.15 + i * 0.22);
-      const angleOffset = (i % 2 === 0 ? 1 : -1) * this.time * 0.8;
+  _renderAmbientHarmonicRings(ctx, radius, colors) {
+    const ringCount = 2;
+    for (let i = 0; i < ringCount; i++) {
+      const ringRadius = radius * (1.14 + i * 0.18);
+      const dir = i % 2 === 0 ? 1 : -1;
+      const rot = this.time * 0.75 * dir;
 
+      ctx.save();
       ctx.strokeStyle = colors.ring;
-      ctx.lineWidth = 1.4;
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
 
-      const points = 64;
-      for (let j = 0; j <= points; j++) {
-        const theta = (j / points) * Math.PI * 2;
-        const wave = Math.sin(theta * 6 + angleOffset) * (4 + this.audioLevel * 14);
+      const segments = 64;
+      for (let j = 0; j <= segments; j++) {
+        const theta = (j / segments) * Math.PI * 2;
+        const wave = Math.sin(theta * 6 + rot) * (2.5 + this.audioLevel * 9);
         const r = ringRadius + wave;
         const x = this.centerX + Math.cos(theta) * r;
         const y = this.centerY + Math.sin(theta) * r;
@@ -213,59 +357,72 @@ class VoiceOrb {
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
+      ctx.restore();
     }
   }
 
-  _renderThinkingRings(ctx, radius, colors) {
-    // Dual Counter-rotating Quantum Rings
-    ctx.lineWidth = 2.0;
-
-    // Clockwise Ring
+  _renderThinkingCosmos(ctx, radius, colors) {
     ctx.save();
+    // Inner Clockwise Luminous Arc
     ctx.strokeStyle = colors.ring;
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = colors.ring;
+    ctx.shadowBlur = 12;
     ctx.beginPath();
-    ctx.arc(this.centerX, this.centerY, radius * 1.25, this.time * 2.5, this.time * 2.5 + Math.PI * 1.4);
+    ctx.arc(this.centerX, this.centerY, radius * 1.16, this.time * 2.6, this.time * 2.6 + Math.PI * 1.35);
     ctx.stroke();
-    ctx.restore();
 
-    // Counter-Clockwise Outer Ring
-    ctx.save();
-    ctx.strokeStyle = "rgba(192, 132, 252, 0.85)";
+    // Outer Counter-Clockwise Arc
+    ctx.strokeStyle = "rgba(192, 132, 252, 0.9)";
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.arc(this.centerX, this.centerY, radius * 1.45, -this.time * 3.2, -this.time * 3.2 + Math.PI * 1.2);
+    ctx.arc(this.centerX, this.centerY, radius * 1.32, -this.time * 3.1, -this.time * 3.1 + Math.PI * 1.15);
     ctx.stroke();
+
+    // Orbiting Spark Node
+    const sparkAngle = this.time * 2.6 + Math.PI * 1.35;
+    const sx = this.centerX + Math.cos(sparkAngle) * (radius * 1.16);
+    const sy = this.centerY + Math.sin(sparkAngle) * (radius * 1.16);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3.0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
-  _renderSegmentedToolRings(ctx, radius, colors) {
-    // Technical segmented locking ring
-    ctx.lineWidth = 2.5;
+  _renderSegmentedTechRing(ctx, radius, colors) {
+    ctx.save();
     ctx.strokeStyle = colors.ring;
-    const segments = 8;
+    ctx.lineWidth = 2.0;
+    const segments = 12;
     const step = (Math.PI * 2) / segments;
+    const rot = this.time * 1.4;
 
     for (let i = 0; i < segments; i++) {
-      const startAngle = i * step + this.time * 1.5;
-      const endAngle = startAngle + step * 0.65;
+      if (i % 2 === 0) continue; // Alternate segmented HUD pattern
+      const start = i * step + rot;
+      const end = start + step * 0.72;
       ctx.beginPath();
-      ctx.arc(this.centerX, this.centerY, radius * 1.3, startAngle, endAngle);
+      ctx.arc(this.centerX, this.centerY, radius * 1.22, start, end);
       ctx.stroke();
     }
+    ctx.restore();
   }
 
-  _renderSpeakingWaves(ctx, radius, colors) {
-    // Fluid Acoustic Bloom Waves
+  _renderSpeakingHarmonics(ctx, radius, colors) {
     const waveCount = 3;
     for (let i = 0; i < waveCount; i++) {
-      const progress = ((this.time * 1.2 + i * 0.33) % 1.0);
-      const r = radius * (1.0 + progress * 0.75);
-      const alpha = (1.0 - progress) * 0.7;
+      const prog = (this.time * 1.15 + i * 0.33) % 1.0;
+      const r = radius * (1.02 + prog * 0.52);
+      const alpha = (1.0 - prog) * 0.75;
 
+      ctx.save();
       ctx.strokeStyle = colors.ring.replace(/[\d.]+\)$/, `${alpha})`);
-      ctx.lineWidth = 2.0 - progress * 1.0;
+      ctx.lineWidth = 2.0 - prog * 1.2;
       ctx.beginPath();
       ctx.arc(this.centerX, this.centerY, r, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
     }
   }
 }

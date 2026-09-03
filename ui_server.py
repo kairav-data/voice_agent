@@ -39,6 +39,56 @@ from llm import OllamaAgent
 from stt import Transcriber
 from tools import ToolBox, assess_command_risk, classify
 
+# --------------------------------------------------------------------------- #
+# Windows asyncio ProactorBasePipeTransport 10054 ConnectionReset fix & DPI
+# --------------------------------------------------------------------------- #
+if sys.platform == "win32":
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor DPI aware (100% full screen resolution)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+    try:
+        from asyncio.proactor_events import _ProactorBasePipeTransport
+        _orig_call_connection_lost = _ProactorBasePipeTransport._call_connection_lost
+
+        def _safe_call_connection_lost(self, exc):
+            try:
+                if hasattr(self, "_sock") and self._sock is not None:
+                    _s = getattr(self._sock, "shutdown", None)
+                    if _s:
+                        def _safe_shutdown(*args, **kwargs):
+                            try:
+                                return _s(*args, **kwargs)
+                            except (ConnectionResetError, ConnectionAbortedError, OSError):
+                                pass
+                        self._sock.shutdown = _safe_shutdown
+                _orig_call_connection_lost(self, exc)
+            except Exception:
+                pass
+
+        _ProactorBasePipeTransport._call_connection_lost = _safe_call_connection_lost
+    except Exception:
+        pass
+
+
+def _suppress_win_errors_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+    exc = context.get("exception")
+    if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, ConnectionError)):
+        return
+    if isinstance(exc, OSError) and getattr(exc, "winerror", None) in (10054, 10053, 10038):
+        return
+    msg = str(context.get("message", ""))
+    if "10054" in msg or "10053" in msg or "forcibly closed" in msg:
+        return
+    try:
+        loop.default_exception_handler(context)
+    except Exception:
+        pass
+
 
 def get_local_ip() -> str:
     """Detect LAN IPv4 address for phone connections."""
@@ -256,6 +306,10 @@ class AgentUIManager:
         self.cfg = cfg
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.active_sockets: List[WebSocket] = []
+        self.socket_queues: Dict[WebSocket, asyncio.Queue] = {}
+        self._sockets_lock = threading.Lock()
+        self._last_meter_time = 0.0
+        self._latest_reply_audio: Optional[bytes] = None
 
         # Current State
         self.state = "idle"  # idle | listening | hearing | processing | thinking | tool | confirmation | executing | speaking | success | error
@@ -311,21 +365,46 @@ class AgentUIManager:
 
     # -- WebSocket Broadcasting -------------------------------------------- #
     def broadcast_sync(self, event_type: str, data: Optional[Dict[str, Any]] = None) -> None:
-        """Thread-safe broadcast to all connected WebSocket clients."""
-        payload = {"type": event_type, "timestamp": time.time(), **(data or {})}
-        if self.loop and self.active_sockets:
-            asyncio.run_coroutine_threadsafe(self._broadcast(payload), self.loop)
+        """Thread-safe broadcast to all connected WebSocket clients via pre-serialized JSON."""
+        if not self.loop:
+            return
+        with self._sockets_lock:
+            if not self.active_sockets:
+                return
 
-    async def _broadcast(self, payload: Dict[str, Any]) -> None:
-        disconnected = []
-        for ws in self.active_sockets:
-            try:
-                await ws.send_text(json.dumps(payload))
-            except Exception:
-                disconnected.append(ws)
-        for ws in disconnected:
-            if ws in self.active_sockets:
-                self.active_sockets.remove(ws)
+        try:
+            payload = {"type": event_type, "timestamp": time.time()}
+            if data:
+                payload.update(data)
+            payload_str = json.dumps(payload)
+        except Exception:
+            return
+
+        try:
+            asyncio.run_coroutine_threadsafe(self._broadcast_str(payload_str), self.loop)
+        except Exception:
+            pass
+
+    async def _broadcast_str(self, payload_str: str) -> None:
+        with self._sockets_lock:
+            sockets = list(self.active_sockets)
+
+        is_meter = payload_str.startswith('{"type": "mic_meter"')
+        for ws in sockets:
+            q = self.socket_queues.get(ws)
+            if q is not None:
+                try:
+                    # For high-frequency meter updates, drop frame if queue already has pending items
+                    if is_meter and q.qsize() > 2:
+                        continue
+                    if q.full():
+                        try:
+                            q.get_nowait()
+                        except (asyncio.QueueEmpty, Exception):
+                            pass
+                    q.put_nowait(payload_str)
+                except Exception:
+                    pass
 
     def set_state(self, new_state: str, extra: Optional[Dict[str, Any]] = None) -> None:
         self.state = new_state
@@ -347,6 +426,12 @@ class AgentUIManager:
 
     # -- Audio Callbacks ---------------------------------------------------- #
     def _on_mic_meter(self, rms: float) -> None:
+        # Rate-limit to max ~30 FPS to prevent WebSocket event flood
+        now = time.monotonic()
+        if now - self._last_meter_time < 0.033:
+            return
+        self._last_meter_time = now
+
         # Scale to a normalised 0.0 - 1.0 representation for smooth orb reaction
         clamped = min(1.0, max(0.0, (rms - 0.005) * 25.0))
         self.broadcast_sync("mic_meter", {"rms": rms, "level": clamped})
@@ -422,24 +507,24 @@ class AgentUIManager:
             return True
         return False
 
-    def _process_audio_array(self, audio_arr: np.ndarray) -> None:
+    def _process_audio_array(self, audio_arr: np.ndarray, source: str = "phone") -> None:
         """Process float32 16kHz audio array through Whisper and dispatch."""
         if self.stt is None:
             self.broadcast_sync("error", {"message": "Faster-Whisper STT is not ready."})
             return
 
         self.set_state("processing")
-        self.add_timeline("voice", "Transcribing phone dictation...")
+        self.add_timeline("voice", f"Transcribing {source} dictation...")
         t0 = time.monotonic()
 
         try:
             text = self.stt.transcribe(audio_arr)
             latency = time.monotonic() - t0
             if text and text.strip():
-                print(f"[phone dictation] {text} ({len(audio_arr)/16000:.1f}s audio, {latency:.2f}s stt)")
-                self.broadcast_sync("transcription_result", {"text": text, "latency": latency})
-                self.add_timeline("voice", f"Dictation from phone: \"{text}\"")
-                self.handle_utterance(text, latency_stt=latency)
+                print(f"[{source} dictation] {text} ({len(audio_arr)/16000:.1f}s audio, {latency:.2f}s stt)")
+                self.broadcast_sync("transcription_result", {"text": text, "latency": latency, "source": source})
+                self.add_timeline("voice", f"Dictation from {source}: \"{text}\"")
+                self.handle_utterance(text, latency_stt=latency, source=source)
             else:
                 self.set_state("idle")
         except Exception as e:
@@ -452,10 +537,10 @@ class AgentUIManager:
         if len(audio_arr) < 1600:
             self.set_state("idle")
             return
-        self._process_audio_array(audio_arr)
+        self._process_audio_array(audio_arr, source="phone")
 
     # -- Execution Pipeline ------------------------------------------------- #
-    def handle_utterance(self, text: str, latency_stt: float = 0.0) -> None:
+    def handle_utterance(self, text: str, latency_stt: float = 0.0, source: str = "laptop") -> None:
         """Processes a transcribed or typed user utterance through Ollama and Tools."""
         text = text.strip()
         if not text:
@@ -485,8 +570,7 @@ class AgentUIManager:
             item["status"] = "success"
             self.history.append(item)
             self.broadcast_sync("history_cleared", {})
-            self.speaker.say(reply)
-            self.set_state("idle")
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
             return
 
         if self.cfg.wake_word:
@@ -542,18 +626,75 @@ class AgentUIManager:
         if len(self.history) > 100:
             self.history.pop(0)
 
+        self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+
+    def _dispatch_reply_audio(
+        self,
+        reply: str,
+        source: str = "laptop",
+        item: Optional[Dict[str, Any]] = None,
+        request_text: str = "",
+    ) -> None:
+        """Routes spoken reply audio to phone speaker, laptop speaker, or both."""
+        audio_data_url = None
+        target = (self.cfg.tts_speaker_target or "auto").lower()
+
+        # Decide whether to play on laptop speakers or on client (phone)
+        if target == "phone":
+            play_on_laptop = False
+            play_on_client = True
+        elif target == "laptop":
+            play_on_laptop = True
+            play_on_client = False
+        elif target == "both":
+            play_on_laptop = True
+            play_on_client = True
+        else:  # "auto": respond on the device where instruction originated
+            if source in ("phone", "mobile", "webrtc_phone"):
+                play_on_laptop = False
+                play_on_client = True
+            else:
+                play_on_laptop = True
+                play_on_client = False
+
+        if self.cfg.tts_enabled:
+            # Synthesize in-memory WAV bytes for client (phone speaker)
+            if play_on_client or target in ("phone", "both"):
+                wav_tuple = self.speaker.synth_wav_bytes(reply)
+                if wav_tuple:
+                    wav_bytes, _ = wav_tuple
+                    b64_wav = base64.b64encode(wav_bytes).decode("ascii")
+                    audio_data_url = f"data:audio/wav;base64,{b64_wav}"
+                    self._latest_reply_audio = wav_bytes
+
+        # Broadcast reply with audio data URL to clients (phone receives audio and plays it)
         self.broadcast_sync("agent_reply", {
-            "item": item,
-            "request": text,
+            "item": item or {},
+            "request": request_text,
             "reply": reply,
-            "latency": item["latency"],
+            "latency": item.get("latency", {}) if item else {},
+            "source": source,
+            "audio": audio_data_url,
+            "audio_url": f"/api/tts/latest?t={int(time.time()*1000)}" if audio_data_url else None,
+            "play_on_client": play_on_client,
         })
         self.add_timeline("reply", f"Agent responded: \"{reply}\"")
 
         # Spoken output
         if self.cfg.tts_enabled:
-            self.set_state("speaking", {"text": reply})
-            self.speaker.say(reply, block=False)
+            if play_on_laptop:
+                self.set_state("speaking", {"text": reply, "target": "laptop"})
+                self.speaker.say(reply, block=False)
+            else:
+                # Spoken audio is playing on phone speaker; set visual state
+                self.set_state("speaking", {"text": reply, "target": "phone"})
+                word_count = len(reply.split())
+                est_sec = max(1.5, word_count / 2.8)
+                def _return_idle():
+                    time.sleep(est_sec)
+                    if self.state == "speaking":
+                        self.set_state("idle")
+                threading.Thread(target=_return_idle, daemon=True).start()
         else:
             self.set_state("idle")
 
@@ -675,6 +816,7 @@ class AgentUIManager:
                 "voice": self.cfg.tts_voice or self.cfg.edge_voice,
                 "rate": self.cfg.tts_rate,
                 "enabled": self.cfg.tts_enabled,
+                "speaker_target": getattr(self.cfg, "tts_speaker_target", "auto"),
                 "piper_voices": voices_found,
             },
             "microphone": {
@@ -813,6 +955,8 @@ def post_settings(payload: Dict[str, Any]) -> JSONResponse:
         )
     if "continuous_listening" in payload:
         manager.continuous_listening = bool(payload["continuous_listening"])
+    if "tts_speaker_target" in payload:
+        cfg.tts_speaker_target = str(payload["tts_speaker_target"]).lower()
 
     manager.broadcast_sync("settings_updated", manager.get_system_status())
     return JSONResponse(content={"status": "updated", "config": manager.get_system_status()})
@@ -825,6 +969,17 @@ def post_test_voice(payload: Dict[str, Any]) -> JSONResponse:
     text = payload.get("text") or "Hello. System online and voice agent operational."
     voice = payload.get("voice")
     backend = payload.get("backend")
+
+    # Generate audio for client (phone speaker) as well
+    audio_data_url = None
+    try:
+        wav_tuple = manager.speaker.synth_wav_bytes(text)
+        if wav_tuple:
+            wav_bytes, _ = wav_tuple
+            b64_wav = base64.b64encode(wav_bytes).decode("ascii")
+            audio_data_url = f"data:audio/wav;base64,{b64_wav}"
+    except Exception:
+        pass
 
     def _speak_test() -> None:
         if voice or backend:
@@ -843,7 +998,27 @@ def post_test_voice(payload: Dict[str, Any]) -> JSONResponse:
             manager.speaker.say(text, block=True)
 
     threading.Thread(target=_speak_test, daemon=True).start()
-    return JSONResponse(content={"status": "speaking", "sample": text})
+    return JSONResponse(content={"status": "speaking", "sample": text, "audio": audio_data_url})
+
+
+@app.get("/api/tts/latest")
+def get_latest_tts_audio() -> Response:
+    """Returns the most recent synthesized speech WAV audio file."""
+    if not manager or not getattr(manager, "_latest_reply_audio", None):
+        raise HTTPException(status_code=404, detail="No audio available")
+    return Response(content=manager._latest_reply_audio, media_type="audio/wav")
+
+
+@app.get("/api/tts/speak")
+def get_tts_audio_for_text(text: str) -> Response:
+    """Dynamically synthesizes any text into a WAV audio stream."""
+    if not manager or not manager.speaker:
+        raise HTTPException(status_code=503, detail="TTS not ready")
+    wav_tuple = manager.speaker.synth_wav_bytes(text)
+    if not wav_tuple:
+        raise HTTPException(status_code=500, detail="Synthesis failed")
+    wav_bytes, _ = wav_tuple
+    return Response(content=wav_bytes, media_type="audio/wav")
 
 
 @app.get("/api/network-info")
@@ -893,22 +1068,15 @@ async def get_screen_stream(quality: int = 60, scale: float = 0.75, fps: int = 2
     return StreamingResponse(_stream(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 
-@app.post("/api/screen/click")
-def post_screen_click(payload: Dict[str, Any]) -> JSONResponse:
-    """Remote mouse click simulation for tapping on phone screen mirror."""
-    x_norm = float(payload.get("x", 0))
-    y_norm = float(payload.get("y", 0))
-    button = str(payload.get("button", "left")).lower()
-
+def simulate_screen_click(x_norm: float, y_norm: float, button: str = "left") -> tuple[int, int]:
+    """Simulates physical mouse click with per-monitor DPI awareness."""
     try:
         user32 = ctypes.windll.user32
-        screen_w = user32.GetSystemMetrics(0)
-        screen_h = user32.GetSystemMetrics(1)
-
-        target_x = max(0, min(screen_w - 1, int(x_norm * screen_w)))
-        target_y = max(0, min(screen_h - 1, int(y_norm * screen_h)))
-
-        user32.SetCursorPos(target_x, target_y)
+        sw = user32.GetSystemMetrics(0)
+        sh = user32.GetSystemMetrics(1)
+        tx = max(0, min(sw - 1, int(x_norm * sw)))
+        ty = max(0, min(sh - 1, int(y_norm * sh)))
+        user32.SetCursorPos(tx, ty)
         if button == "left":
             user32.mouse_event(0x0002, 0, 0, 0, 0)
             user32.mouse_event(0x0004, 0, 0, 0, 0)
@@ -921,8 +1089,23 @@ def post_screen_click(payload: Dict[str, Any]) -> JSONResponse:
             time.sleep(0.04)
             user32.mouse_event(0x0002, 0, 0, 0, 0)
             user32.mouse_event(0x0004, 0, 0, 0, 0)
+        print(f"[Remote Click] Simulated {button} click at ({tx}, {ty}) for normalized ({x_norm:.3f}, {y_norm:.3f})")
+        return tx, ty
+    except Exception as e:
+        print(f"[Remote Click Error] {e}")
+        return 0, 0
 
-        return JSONResponse(content={"status": "ok", "x": target_x, "y": target_y})
+
+@app.post("/api/screen/click")
+def post_screen_click(payload: Dict[str, Any]) -> JSONResponse:
+    """Remote mouse click simulation for tapping on phone screen mirror."""
+    x_norm = float(payload.get("x", 0))
+    y_norm = float(payload.get("y", 0))
+    button = str(payload.get("button", "left")).lower()
+
+    try:
+        tx, ty = simulate_screen_click(x_norm, y_norm, button)
+        return JSONResponse(content={"status": "ok", "x": tx, "y": ty})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Click failed: {e}")
 
@@ -987,7 +1170,7 @@ async def handle_incoming_webrtc_audio(track, mgr: AgentUIManager) -> None:
                         if len(full_pcm) > 8000:
                             threading.Thread(
                                 target=mgr._process_audio_array,
-                                args=(full_pcm,),
+                                args=(full_pcm, "phone"),
                                 daemon=True,
                             ).start()
         except Exception:
@@ -1018,26 +1201,9 @@ async def post_webrtc_offer(payload: Dict[str, Any]) -> JSONResponse:
                     x_norm = float(data.get("x", 0))
                     y_norm = float(data.get("y", 0))
                     btn = str(data.get("button", "left")).lower()
-                    user32 = ctypes.windll.user32
-                    sw = user32.GetSystemMetrics(0)
-                    sh = user32.GetSystemMetrics(1)
-                    tx = max(0, min(sw - 1, int(x_norm * sw)))
-                    ty = max(0, min(sh - 1, int(y_norm * sh)))
-                    user32.SetCursorPos(tx, ty)
-                    if btn == "left":
-                        user32.mouse_event(0x0002, 0, 0, 0, 0)
-                        user32.mouse_event(0x0004, 0, 0, 0, 0)
-                    elif btn == "right":
-                        user32.mouse_event(0x0008, 0, 0, 0, 0)
-                        user32.mouse_event(0x0010, 0, 0, 0, 0)
-                    elif btn == "double":
-                        user32.mouse_event(0x0002, 0, 0, 0, 0)
-                        user32.mouse_event(0x0004, 0, 0, 0, 0)
-                        time.sleep(0.04)
-                        user32.mouse_event(0x0002, 0, 0, 0, 0)
-                        user32.mouse_event(0x0004, 0, 0, 0, 0)
-            except Exception:
-                pass
+                    simulate_screen_click(x_norm, y_norm, btn)
+            except Exception as e:
+                print(f"[DataChannel Click Error] {e}")
 
     @pc.on("track")
     def on_track(track):
@@ -1073,11 +1239,36 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         return
 
     manager.loop = asyncio.get_running_loop()
-    manager.active_sockets.append(websocket)
+    if sys.platform == "win32":
+        try:
+            manager.loop.set_exception_handler(_suppress_win_errors_handler)
+        except Exception:
+            pass
+
+    queue: asyncio.Queue = asyncio.Queue(maxsize=120)
+    with manager._sockets_lock:
+        manager.active_sockets.append(websocket)
+        manager.socket_queues[websocket] = queue
+
+    # Dedicated sender task: single writer per socket eliminates concurrency collisions
+    async def _client_sender():
+        try:
+            while True:
+                msg = await queue.get()
+                if msg is None:
+                    break
+                await websocket.send_text(msg)
+                queue.task_done()
+        except (WebSocketDisconnect, ConnectionResetError, ConnectionError, asyncio.CancelledError):
+            pass
+        except Exception:
+            pass
+
+    sender_task = asyncio.create_task(_client_sender())
 
     local_ip = get_local_ip()
-    # Send initial state snapshot with network info
-    await websocket.send_text(json.dumps({
+    # Send initial state snapshot with network info via sender queue
+    init_msg = json.dumps({
         "type": "init",
         "system": manager.get_system_status(),
         "history": manager.history,
@@ -1089,7 +1280,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             "protocol": "https" if manager.cfg.ui_ssl else "http",
             "url": f"{'https' if manager.cfg.ui_ssl else 'http'}://{local_ip}:{manager.cfg.ui_port}",
         },
-    }))
+    })
+    await queue.put(init_msg)
 
     try:
         while True:
@@ -1101,7 +1293,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             msg_type = msg.get("type")
             if msg_type == "ping":
-                await websocket.send_text(json.dumps({"type": "pong"}))
+                await queue.put(json.dumps({"type": "pong"}))
 
             elif msg_type == "start_listening":
                 if manager.state in ("idle", "success", "error"):
@@ -1133,10 +1325,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             elif msg_type == "send_text":
                 text = msg.get("text", "").strip()
+                source = msg.get("client", "laptop")
                 if text:
                     threading.Thread(
                         target=manager.handle_utterance,
                         args=(text,),
+                        kwargs={"source": source},
                         daemon=True,
                     ).start()
 
@@ -1156,21 +1350,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 x_norm = float(msg.get("x", 0))
                 y_norm = float(msg.get("y", 0))
                 btn = str(msg.get("button", "left")).lower()
-                try:
-                    user32 = ctypes.windll.user32
-                    screen_w = user32.GetSystemMetrics(0)
-                    screen_h = user32.GetSystemMetrics(1)
-                    tx = max(0, min(screen_w - 1, int(x_norm * screen_w)))
-                    ty = max(0, min(screen_h - 1, int(y_norm * screen_h)))
-                    user32.SetCursorPos(tx, ty)
-                    if btn == "left":
-                        user32.mouse_event(0x0002, 0, 0, 0, 0)
-                        user32.mouse_event(0x0004, 0, 0, 0, 0)
-                    elif btn == "right":
-                        user32.mouse_event(0x0008, 0, 0, 0, 0)
-                        user32.mouse_event(0x0010, 0, 0, 0, 0)
-                except Exception:
-                    pass
+                simulate_screen_click(x_norm, y_norm, btn)
 
             elif msg_type == "confirm_response":
                 cid = msg.get("id", "")
@@ -1183,18 +1363,23 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 manager.broadcast_sync("history_cleared", {})
 
             elif msg_type == "get_status":
-                await websocket.send_text(json.dumps({
+                await queue.put(json.dumps({
                     "type": "status_update",
                     "system": manager.get_system_status(),
                 }))
 
-    except WebSocketDisconnect:
-        if websocket in manager.active_sockets:
-            manager.active_sockets.remove(websocket)
+    except (WebSocketDisconnect, ConnectionResetError, ConnectionError, asyncio.CancelledError):
+        pass
     except Exception as exc:
-        print(f"[ui_server] WebSocket connection closed: {exc}")
-        if websocket in manager.active_sockets:
-            manager.active_sockets.remove(websocket)
+        err_str = str(exc)
+        if "10054" not in err_str and "closed" not in err_str.lower() and "dictionary changed size" not in err_str:
+            print(f"[ui_server] WebSocket connection closed: {exc}")
+    finally:
+        with manager._sockets_lock:
+            if websocket in manager.active_sockets:
+                manager.active_sockets.remove(websocket)
+            manager.socket_queues.pop(websocket, None)
+        sender_task.cancel()
 
 
 # --------------------------------------------------------------------------- #
