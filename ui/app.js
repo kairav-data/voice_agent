@@ -1009,6 +1009,27 @@
     });
   }
 
+  const btnScreenScrollUp = document.getElementById("btnScreenScrollUp");
+  if (btnScreenScrollUp) {
+    btnScreenScrollUp.addEventListener("click", () => {
+      sendWS("scroll", { direction: "up", amount: "medium" });
+    });
+  }
+
+  const btnScreenScrollDown = document.getElementById("btnScreenScrollDown");
+  if (btnScreenScrollDown) {
+    btnScreenScrollDown.addEventListener("click", () => {
+      sendWS("scroll", { direction: "down", amount: "medium" });
+    });
+  }
+
+  const btnScreenPlayPause = document.getElementById("btnScreenPlayPause");
+  if (btnScreenPlayPause) {
+    btnScreenPlayPause.addEventListener("click", () => {
+      sendWS("media_control", { action: "play_pause" });
+    });
+  }
+
   async function startWebRTCScreen() {
     try {
       if (rtcPeerConnection) {

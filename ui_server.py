@@ -13,6 +13,7 @@ import fractions
 import io
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -580,6 +581,121 @@ class AgentUIManager:
                 self.set_state("idle")
                 return
             text = normalised.split(wake, 1)[1].strip(" ,.") or text
+            normalised = text.lower().strip(" .!?,")
+
+        # -------------------------------------------------------------------
+        # Fast-Path Direct Intent Recognition (<50ms execution)
+        # -------------------------------------------------------------------
+        # 1. Direct Page Scrolling
+        if normalised in ("scroll down", "scroll down please", "please scroll down", "scroll page down", "page down", "scroll more"):
+            call_res = json.loads(self.toolbox.call("scroll_page", {"direction": "down", "amount": "medium"}))
+            reply = "Scrolled down."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "scroll_page", "args": {"direction": "down"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif normalised in ("scroll up", "scroll up please", "please scroll up", "scroll page up", "page up"):
+            call_res = json.loads(self.toolbox.call("scroll_page", {"direction": "up", "amount": "medium"}))
+            reply = "Scrolled up."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "scroll_page", "args": {"direction": "up"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif normalised in ("scroll to top", "scroll to the top", "go to top", "top of page"):
+            call_res = json.loads(self.toolbox.call("scroll_page", {"direction": "top"}))
+            reply = "Scrolled to the top."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "scroll_page", "args": {"direction": "top"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif normalised in ("scroll to bottom", "scroll to the bottom", "go to bottom", "bottom of page"):
+            call_res = json.loads(self.toolbox.call("scroll_page", {"direction": "bottom"}))
+            reply = "Scrolled to the bottom."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "scroll_page", "args": {"direction": "bottom"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+
+        # 2. Media Controls
+        if normalised in ("pause", "pause video", "pause the video", "pause music", "stop video", "stop music"):
+            call_res = json.loads(self.toolbox.call("control_media", {"action": "play_pause"}))
+            reply = "Paused playback."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "control_media", "args": {"action": "play_pause"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif normalised in ("resume", "resume video", "play video", "unpause", "unpause video", "resume music"):
+            call_res = json.loads(self.toolbox.call("control_media", {"action": "play_pause"}))
+            reply = "Resumed playback."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "control_media", "args": {"action": "play_pause"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif normalised in ("mute", "mute video", "mute audio", "unmute", "unmute video"):
+            call_res = json.loads(self.toolbox.call("control_media", {"action": "mute"}))
+            reply = "Mute toggled."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "control_media", "args": {"action": "mute"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif normalised in ("fullscreen", "full screen", "exit fullscreen", "toggle fullscreen"):
+            call_res = json.loads(self.toolbox.call("control_media", {"action": "fullscreen"}))
+            reply = "Fullscreen toggled."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "control_media", "args": {"action": "fullscreen"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+
+        # 3. Direct YouTube Video Play
+        # Handles e.g. "play bohemian rhapsody on youtube", "play interstellar soundtrack", "play lofi hip hop"
+        yt_match = re.match(r"^(?:please\s+)?(?:play|search and play)\s+(.+?)(?:\s+on\s+youtube|\s+in\s+youtube)?$", normalised)
+        if yt_match and not any(k in normalised for k in ("game", "with", "around")):
+            target_video = yt_match.group(1).strip()
+            if target_video not in ("video", "the video", "music", "the music"):
+                self.set_state("thinking", {"request": text})
+                self.add_timeline("agent", f"Searching YouTube for \"{target_video}\"")
+                call_res = json.loads(self.toolbox.call("play_youtube_video", {"query": target_video, "autoplay": True}))
+                reply = f"Playing {target_video} on YouTube."
+                item["reply"] = reply
+                item["status"] = "success"
+                item["tools"].append({"name": "play_youtube_video", "args": {"query": target_video}, "result": call_res})
+                self.history.append(item)
+                self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+                return
+
+        # 4. Direct Open Web App
+        # Handles e.g. "open youtube", "open spotify", "open netflix", "open github", "open gmail"
+        open_match = re.match(r"^(?:please\s+)?(?:open|launch|go to)\s+([a-zA-Z0-9_\-\.\s]+)$", normalised)
+        if open_match:
+            app_target = open_match.group(1).strip()
+            from tools import WEB_APPS
+            if app_target.lower() in WEB_APPS or "." in app_target:
+                self.set_state("thinking", {"request": text})
+                self.add_timeline("agent", f"Opening web app \"{app_target}\"")
+                call_res = json.loads(self.toolbox.call("open_web_app", {"app_name_or_url": app_target}))
+                reply = f"Opening {app_target}."
+                item["reply"] = reply
+                item["status"] = "success"
+                item["tools"].append({"name": "open_web_app", "args": {"app_name_or_url": app_target}, "result": call_res})
+                self.history.append(item)
+                self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+                return
 
         self.set_state("thinking", {"request": text})
         self.add_timeline("agent", f"Processing request: \"{text}\"")
@@ -1351,6 +1467,23 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 y_norm = float(msg.get("y", 0))
                 btn = str(msg.get("button", "left")).lower()
                 simulate_screen_click(x_norm, y_norm, btn)
+
+            elif msg_type == "scroll":
+                direction = msg.get("direction", "down")
+                amount = msg.get("amount", "medium")
+                threading.Thread(
+                    target=manager.toolbox.call,
+                    args=("scroll_page", {"direction": direction, "amount": amount}),
+                    daemon=True,
+                ).start()
+
+            elif msg_type == "media_control":
+                action = msg.get("action", "play_pause")
+                threading.Thread(
+                    target=manager.toolbox.call,
+                    args=("control_media", {"action": action}),
+                    daemon=True,
+                ).start()
 
             elif msg_type == "confirm_response":
                 cid = msg.get("id", "")
