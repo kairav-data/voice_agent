@@ -377,69 +377,180 @@ html, body {
 }
 
 /* State Badge */
+/* ==========================================================================
+   FLOATING NEURAL VOICE STATE INDICATOR
+   Aesthetic: Pure Luminous Floating Typography (Zero Container / No Box)
+   ========================================================================== */
 .voice-state-badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 14px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 4px;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 6px 0 !important;
+  margin-bottom: 8px;
   flex-shrink: 0;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
 }
 
-.voice-state-badge.state-idle {
-  display: none !important;
+.voice-state-badge .badge-text {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-align: center;
+  display: inline-block;
+  transition: color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              text-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.25s ease,
+              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, text-shadow, opacity;
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.voice-state-badge.state-listening {
-  color: var(--accent-cyan);
-  border-color: rgba(2, 132, 199, 0.35);
-  background: var(--accent-cyan-dim);
+@keyframes stateTextFade {
+  0% {
+    opacity: 0.3;
+    transform: translateY(-2px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.voice-state-badge.state-hearing {
-  color: var(--accent-blue);
-  border-color: rgba(37, 99, 235, 0.4);
-  background: rgba(37, 99, 235, 0.12);
+@keyframes textLuminousPulse {
+  0% {
+    opacity: 0.85;
+    filter: brightness(0.95);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
 }
 
-.voice-state-badge.state-thinking {
-  color: var(--accent-violet);
-  border-color: rgba(124, 58, 237, 0.4);
-  background: var(--accent-violet-dim);
+/* ==========================================================================
+   STATE COLOR & PURE TEXT RADIANCE (LIGHT & DARK THEMES)
+   ========================================================================== */
+
+/* 1. STANDBY / IDLE */
+.voice-state-badge.state-idle .badge-text {
+  color: #94A3B8;
+  text-shadow: none;
+  opacity: 0.8;
+  letter-spacing: 0.26em;
 }
 
-.voice-state-badge.state-tool, .voice-state-badge.state-executing {
-  color: var(--accent-amber);
-  border-color: rgba(217, 119, 6, 0.4);
-  background: var(--accent-amber-dim);
+[data-theme="dark"] .voice-state-badge.state-idle .badge-text {
+  color: rgba(255, 255, 255, 0.38);
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
 }
 
-.voice-state-badge.state-speaking {
-  color: var(--accent-cyan);
-  border-color: rgba(2, 132, 199, 0.4);
-  background: var(--accent-cyan-dim);
+/* 2. LISTENING */
+.voice-state-badge.state-listening .badge-text {
+  color: #0284C7;
+  text-shadow: 0 0 12px rgba(2, 132, 199, 0.45), 0 0 24px rgba(2, 132, 199, 0.2);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.6s ease-in-out infinite alternate;
 }
 
-.voice-state-badge.state-confirmation {
+[data-theme="dark"] .voice-state-badge.state-listening .badge-text {
+  color: #00F0FF;
+  text-shadow: 0 0 14px rgba(0, 240, 255, 0.85), 0 0 32px rgba(0, 240, 255, 0.45);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.6s ease-in-out infinite alternate;
+}
+
+/* 3. HEARING VOICE */
+.voice-state-badge.state-hearing .badge-text {
+  color: #2563EB;
+  text-shadow: 0 0 12px rgba(37, 99, 235, 0.45);
+}
+
+[data-theme="dark"] .voice-state-badge.state-hearing .badge-text {
+  color: #38BDF8;
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.85), 0 0 32px rgba(56, 189, 248, 0.45);
+}
+
+/* 4. THINKING */
+.voice-state-badge.state-thinking .badge-text,
+.voice-state-badge.state-processing .badge-text {
+  color: #7C3AED;
+  text-shadow: 0 0 14px rgba(124, 58, 237, 0.45), 0 0 28px rgba(124, 58, 237, 0.25);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.8s ease-in-out infinite alternate;
+}
+
+[data-theme="dark"] .voice-state-badge.state-thinking .badge-text,
+[data-theme="dark"] .voice-state-badge.state-processing .badge-text {
+  color: #C084FC;
+  text-shadow: 0 0 16px rgba(192, 132, 252, 0.9), 0 0 36px rgba(168, 85, 247, 0.5);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.8s ease-in-out infinite alternate;
+}
+
+/* 5. EXECUTING / TOOL */
+.voice-state-badge.state-tool .badge-text,
+.voice-state-badge.state-executing .badge-text {
+  color: #D97706;
+  text-shadow: 0 0 14px rgba(217, 119, 6, 0.45), 0 0 28px rgba(217, 119, 6, 0.25);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.6s ease-in-out infinite alternate;
+}
+
+[data-theme="dark"] .voice-state-badge.state-tool .badge-text,
+[data-theme="dark"] .voice-state-badge.state-executing .badge-text {
+  color: #FBBF24;
+  text-shadow: 0 0 16px rgba(251, 191, 36, 0.9), 0 0 36px rgba(245, 158, 11, 0.5);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.6s ease-in-out infinite alternate;
+}
+
+/* 6. SPEAKING */
+.voice-state-badge.state-speaking .badge-text {
+  color: #0891B2;
+  text-shadow: 0 0 14px rgba(8, 145, 178, 0.45), 0 0 28px rgba(8, 145, 178, 0.25);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.4s ease-in-out infinite alternate;
+}
+
+[data-theme="dark"] .voice-state-badge.state-speaking .badge-text {
+  color: #22D3EE;
+  text-shadow: 0 0 16px rgba(34, 211, 238, 0.9), 0 0 38px rgba(6, 182, 212, 0.55);
+  animation: stateTextFade 0.3s cubic-bezier(0.16, 1, 0.3, 1), textLuminousPulse 1.4s ease-in-out infinite alternate;
+}
+
+/* 7. CONFIRMATION */
+.voice-state-badge.state-confirmation .badge-text {
   color: #EA580C;
-  border-color: rgba(234, 88, 12, 0.5);
-  background: rgba(234, 88, 12, 0.12);
+  text-shadow: 0 0 14px rgba(234, 88, 12, 0.45);
 }
 
-.voice-state-badge.state-error {
-  color: var(--accent-rose);
-  border-color: rgba(225, 29, 72, 0.4);
-  background: var(--accent-rose-dim);
+[data-theme="dark"] .voice-state-badge.state-confirmation .badge-text {
+  color: #FB923C;
+  text-shadow: 0 0 16px rgba(251, 146, 60, 0.85), 0 0 32px rgba(234, 88, 12, 0.5);
+}
+
+/* 8. SUCCESS */
+.voice-state-badge.state-success .badge-text {
+  color: #059669;
+  text-shadow: 0 0 14px rgba(5, 150, 105, 0.45);
+}
+
+[data-theme="dark"] .voice-state-badge.state-success .badge-text {
+  color: #34D399;
+  text-shadow: 0 0 16px rgba(52, 211, 153, 0.9), 0 0 34px rgba(16, 185, 129, 0.5);
+}
+
+/* 9. ERROR */
+.voice-state-badge.state-error .badge-text {
+  color: #E11D48;
+  text-shadow: 0 0 14px rgba(225, 29, 72, 0.45);
+}
+
+[data-theme="dark"] .voice-state-badge.state-error .badge-text {
+  color: #FB7185;
+  text-shadow: 0 0 16px rgba(251, 113, 133, 0.9), 0 0 34px rgba(239, 68, 68, 0.5);
 }
 
 
@@ -2441,5 +2552,227 @@ html, body {
 
   .screen-tool-btn span {
     display: none; /* On micro screens < 380px, icons only for maximum breathability */
+  }
+}
+
+/* ==========================================================================
+   PREMIUM FLOATING TOOLTIP & HOVER POPOVER SYSTEM
+   Aesthetic: Obsidian Aether / Apple Glassmorphism / Linear Floating Pill
+   ========================================================================== */
+.eco-tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 999999;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.14s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.14s;
+  will-change: transform, opacity;
+  user-select: none;
+  contain: layout style;
+}
+
+.eco-tooltip.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.eco-tooltip-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.16),
+              0 4px 10px rgba(15, 23, 42, 0.04),
+              inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  max-width: 340px;
+  transform: scale(0.93) translateY(-3px);
+  transform-origin: center top;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+.eco-tooltip.active .eco-tooltip-inner {
+  transform: scale(1) translateY(0);
+}
+
+.eco-tooltip[data-placement^="top"] .eco-tooltip-inner {
+  transform: scale(0.93) translateY(3px);
+  transform-origin: center bottom;
+}
+
+.eco-tooltip[data-placement^="top"].active .eco-tooltip-inner {
+  transform: scale(1) translateY(0);
+}
+
+[data-theme="dark"] .eco-tooltip-inner {
+  background: rgba(13, 17, 27, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 14px 38px -4px rgba(0, 0, 0, 0.8),
+              0 0 20px rgba(0, 240, 255, 0.14),
+              inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #F8FAFC;
+}
+
+/* Status Indicator Dot */
+.eco-tooltip-indicator {
+  display: none;
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.eco-tooltip-indicator.active {
+  display: inline-block;
+  background: #10B981;
+  box-shadow: 0 0 8px #10B981;
+}
+.eco-tooltip-indicator.paused {
+  display: inline-block;
+  background: #F59E0B;
+  box-shadow: 0 0 8px #F59E0B;
+}
+.eco-tooltip-indicator.danger {
+  display: inline-block;
+  background: #EF4444;
+  box-shadow: 0 0 8px #EF4444;
+}
+
+/* Tooltip Primary Text */
+.eco-tooltip-text {
+  display: inline-block;
+  color: inherit;
+}
+
+/* Tooltip Secondary / Subtext */
+.eco-tooltip-sub {
+  display: none;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding-left: 2px;
+}
+.eco-tooltip-sub.visible {
+  display: inline;
+}
+
+/* Keyboard Shortcut Key Chips */
+.eco-tooltip-keys {
+  display: none;
+  align-items: center;
+  gap: 3.5px;
+  margin-left: 2px;
+}
+.eco-tooltip-keys.visible {
+  display: inline-flex;
+}
+
+.eco-tooltip-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5px 5.5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: var(--accent-cyan);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .eco-tooltip-kbd {
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #00F0FF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.eco-tooltip-kbd-sep {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Directional Arrow Pip */
+.eco-tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.eco-tooltip-arrow::before {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  transform: rotate(45deg);
+}
+
+[data-theme="dark"] .eco-tooltip-arrow::before {
+  background: rgba(13, 17, 27, 0.94);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Arrow Variations */
+.eco-tooltip[data-placement^="top"] .eco-tooltip-arrow {
+  bottom: -4px;
+}
+.eco-tooltip[data-placement^="top"] .eco-tooltip-arrow::before {
+  border-top: none;
+  border-left: none;
+}
+
+.eco-tooltip[data-placement^="bottom"] .eco-tooltip-arrow {
+  top: -4px;
+}
+.eco-tooltip[data-placement^="bottom"] .eco-tooltip-arrow::before {
+  border-bottom: none;
+  border-right: none;
+}
+
+.eco-tooltip[data-placement^="left"] .eco-tooltip-arrow {
+  right: -4px;
+}
+.eco-tooltip[data-placement^="left"] .eco-tooltip-arrow::before {
+  border-bottom: none;
+  border-left: none;
+}
+
+.eco-tooltip[data-placement^="right"] .eco-tooltip-arrow {
+  left: -4px;
+}
+.eco-tooltip[data-placement^="right"] .eco-tooltip-arrow::before {
+  border-top: none;
+  border-right: none;
+}
+
+/* Disable tooltips on pure touch devices without hover capability */
+@media (hover: none) and (pointer: coarse) {
+  .eco-tooltip {
+    display: none !important;
   }
 }

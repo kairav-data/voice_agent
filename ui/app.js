@@ -261,21 +261,22 @@
   let orb = null;
   window.addEventListener("DOMContentLoaded", () => {
     orb = new VoiceOrb("orbCanvas");
+    updateState("idle");
   });
 
   // State Machine Labels
   const STATE_LABELS = {
-    idle: "",
-    listening: "LISTENING",
-    hearing: "HEARING",
-    processing: "UNDERSTANDING",
-    thinking: "THINKING",
-    tool: "PREPARING ACTION",
-    confirmation: "CONFIRMATION REQUIRED",
-    executing: "EXECUTING",
-    speaking: "SPEAKING",
-    success: "COMPLETED",
-    error: "ERROR",
+    idle: "ECO STANDBY",
+    listening: "LISTENING...",
+    hearing: "HEARING VOICE",
+    processing: "PROCESSING AUDIO",
+    thinking: "THINKING...",
+    tool: "PREPARING ACTION...",
+    confirmation: "AUTHORIZATION REQUIRED",
+    executing: "EXECUTING ACTION...",
+    speaking: "SPEAKING...",
+    success: "ACTION COMPLETE",
+    error: "ERROR ENCOUNTERED",
   };
 
   let currentState = "idle";
@@ -285,14 +286,16 @@
     currentState = newState;
     if (orb) orb.setState(newState);
 
-    // Update State Badge
+    // Update State Badge & Dynamic Beacon
     stateBadge.className = `voice-state-badge state-${newState}`;
-    if (newState === "idle") {
-      stateBadge.style.display = "none";
-      stateBadgeText.textContent = "";
-    } else {
-      stateBadge.style.display = "inline-flex";
-      stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
+    stateBadge.style.display = "inline-flex";
+    stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
+
+    // Auto-return from success to standby after 2.8s
+    if (newState === "success") {
+      setTimeout(() => {
+        if (currentState === "success") updateState("idle");
+      }, 2800);
     }
 
     // Update Center Label & Mic Button
@@ -2012,6 +2015,254 @@
       setTimeout(() => (btnCopyMobileUrl.textContent = "Copy"), 2000);
     }
   });
+
+  // ========================================================================
+  // Premium Tooltip & Micro-Popover Engine
+  // ========================================================================
+  (function initTooltipEngine() {
+    const tooltip = document.getElementById("ecoTooltip");
+    if (!tooltip) return;
+
+    const arrow = document.getElementById("ecoTooltipArrow");
+    const label = document.getElementById("ecoTooltipText");
+    const sub = document.getElementById("ecoTooltipSub");
+    const keys = document.getElementById("ecoTooltipKeys");
+    const indicator = document.getElementById("ecoTooltipIndicator");
+
+    let currentTarget = null;
+    let showTimer = null;
+    let lastHideTimestamp = 0;
+    const WARM_THRESHOLD_MS = 380; // Instant switch if hovered within 380ms of previous button
+
+    // Parse tooltip text to extract shortcuts, status indicators, and subtext
+    function parseTooltipText(raw) {
+      if (!raw) return null;
+      let text = raw.trim();
+      let shortcut = "";
+      let subtext = "";
+      let statusType = "";
+
+      // Check for status like "Continuous Listening: Paused" or "Status: Active"
+      const statusMatch = text.match(/^([^:]+):\s*(Active|Paused|Enabled|Disabled|On|Off|Online|Offline)$/i);
+      if (statusMatch) {
+        text = statusMatch[1].trim();
+        subtext = statusMatch[2].trim();
+        const lower = subtext.toLowerCase();
+        if (["active", "enabled", "on", "online"].includes(lower)) {
+          statusType = "active";
+        } else if (["paused", "disabled", "off", "offline"].includes(lower)) {
+          statusType = "paused";
+        }
+      }
+
+      // Check for trailing parentheses like "(Ctrl+J)" or "(Ctrl+T or Esc)" or "(Escape)" or "(Alt+M)"
+      const parenMatch = text.match(/\(([^)]+)\)$/);
+      if (parenMatch) {
+        const inside = parenMatch[1].trim();
+        if (/\b(Ctrl|Alt|Shift|Esc|Escape|Enter|Space|Tilde|Tab|Cmd|Win)\b/i.test(inside)) {
+          shortcut = inside;
+          text = text.substring(0, parenMatch.index).trim();
+        } else if (!subtext) {
+          subtext = inside;
+          text = text.substring(0, parenMatch.index).trim();
+        }
+      }
+
+      // Check for copied or danger keywords
+      if (/copied/i.test(text)) {
+        statusType = "active";
+      } else if (/interrupt|stop|danger|abort/i.test(text)) {
+        statusType = "danger";
+      }
+
+      return { text, shortcut, subtext, statusType };
+    }
+
+    // Render parsed data into tooltip DOM
+    function renderTooltipContent(parsed) {
+      if (!parsed) return;
+      label.textContent = parsed.text;
+
+      // Status indicator dot
+      indicator.className = "eco-tooltip-indicator";
+      if (parsed.statusType) {
+        indicator.classList.add(parsed.statusType);
+      }
+
+      // Subtext
+      if (parsed.subtext) {
+        sub.textContent = parsed.subtext;
+        sub.classList.add("visible");
+      } else {
+        sub.textContent = "";
+        sub.classList.remove("visible");
+      }
+
+      // Keyboard shortcuts
+      keys.innerHTML = "";
+      if (parsed.shortcut) {
+        keys.classList.add("visible");
+        const orParts = parsed.shortcut.split(/\s+or\s+/i);
+        orParts.forEach((part, partIdx) => {
+          if (partIdx > 0) {
+            const sep = document.createElement("span");
+            sep.className = "eco-tooltip-kbd-sep";
+            sep.textContent = "or";
+            keys.appendChild(sep);
+          }
+          const combo = part.split("+").map((s) => s.trim());
+          combo.forEach((keyName, keyIdx) => {
+            if (keyIdx > 0) {
+              const plus = document.createElement("span");
+              plus.className = "eco-tooltip-kbd-sep";
+              plus.textContent = "+";
+              keys.appendChild(plus);
+            }
+            const kbd = document.createElement("kbd");
+            kbd.className = "eco-tooltip-kbd";
+            kbd.textContent = keyName === "Escape" ? "Esc" : keyName;
+            keys.appendChild(kbd);
+          });
+        });
+      } else {
+        keys.classList.remove("visible");
+      }
+    }
+
+    // Position tooltip relative to target element with boundary collision handling
+    function positionTooltip(el) {
+      const targetRect = el.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const margin = 8;
+      const arrowOffset = 6;
+
+      // Determine vertical placement: top vs bottom
+      let placement = "bottom";
+      if (targetRect.top > window.innerHeight * 0.65 || (window.innerHeight - targetRect.bottom < tooltipRect.height + margin + 14)) {
+        placement = "top";
+      }
+
+      tooltip.setAttribute("data-placement", placement);
+
+      let top = 0;
+      let left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+
+      // Clamp horizontal within screen bounds
+      left = Math.max(margin, Math.min(window.innerWidth - tooltipRect.width - margin, left));
+
+      if (placement === "bottom") {
+        top = targetRect.bottom + arrowOffset;
+      } else {
+        top = targetRect.top - tooltipRect.height - arrowOffset;
+      }
+
+      tooltip.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+
+      // Align arrow with target element center
+      const targetCenterX = targetRect.left + (targetRect.width / 2);
+      const arrowLeft = Math.max(10, Math.min(tooltipRect.width - 14, targetCenterX - left - 4));
+      arrow.style.left = `${Math.round(arrowLeft)}px`;
+    }
+
+    function showTooltipFor(el) {
+      if (!el || el === currentTarget) return;
+
+      // Check for title, data-eco-tooltip, or aria-label
+      let raw = el.getAttribute("title") || el.dataset.ecoTooltip;
+      if (!raw) {
+        const aria = el.getAttribute("aria-label");
+        if (aria && (el.tagName === "BUTTON" || el.classList.contains("icon-btn") || el.id === "orbWrapper")) {
+          raw = aria;
+        }
+      }
+      if (!raw) return;
+
+      // Suppress browser default tooltip popup
+      if (el.hasAttribute("title")) {
+        el.dataset.ecoTooltip = raw;
+        el.removeAttribute("title");
+      }
+
+      currentTarget = el;
+      const parsed = parseTooltipText(raw);
+      if (!parsed || !parsed.text) return;
+
+      clearTimeout(showTimer);
+
+      const isWarm = (Date.now() - lastHideTimestamp) < WARM_THRESHOLD_MS;
+      const delay = isWarm ? 0 : 120;
+
+      showTimer = setTimeout(() => {
+        if (!currentTarget) return;
+        renderTooltipContent(parsed);
+        tooltip.classList.add("active");
+        positionTooltip(currentTarget);
+      }, delay);
+    }
+
+    function hideTooltip() {
+      clearTimeout(showTimer);
+      if (currentTarget) {
+        currentTarget = null;
+        lastHideTimestamp = Date.now();
+        tooltip.classList.remove("active");
+      }
+    }
+
+    // Global event listeners for zero-configuration discovery
+    document.addEventListener("pointerover", (evt) => {
+      if (evt.pointerType === "touch") return;
+
+      const trigger = evt.target.closest(
+        "button, [title], [data-eco-tooltip], .icon-btn, .mini-icon-btn, .screen-tool-btn, #orbWrapper, .btn-push-to-talk, .kbd-badge"
+      );
+
+      if (trigger) {
+        showTooltipFor(trigger);
+      } else {
+        hideTooltip();
+      }
+    }, { passive: true });
+
+    document.addEventListener("pointerout", (evt) => {
+      if (currentTarget && !currentTarget.contains(evt.relatedTarget)) {
+        hideTooltip();
+      }
+    }, { passive: true });
+
+    // Dismiss immediately on interaction or modal close
+    window.addEventListener("scroll", hideTooltip, { passive: true });
+    window.addEventListener("click", hideTooltip, { passive: true });
+    window.addEventListener("pointerdown", hideTooltip, { passive: true });
+    window.addEventListener("blur", hideTooltip);
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") hideTooltip();
+    });
+
+    // Observer to update tooltip dynamically if attributes change
+    const observer = new MutationObserver((mutations) => {
+      if (!currentTarget) return;
+      for (const m of mutations) {
+        if (m.target === currentTarget && (m.attributeName === "title" || m.attributeName === "data-eco-tooltip")) {
+          const raw = currentTarget.getAttribute("title") || currentTarget.dataset.ecoTooltip;
+          if (raw) {
+            if (currentTarget.hasAttribute("title")) {
+              currentTarget.dataset.ecoTooltip = raw;
+              currentTarget.removeAttribute("title");
+            }
+            renderTooltipContent(parseTooltipText(raw));
+            positionTooltip(currentTarget);
+          }
+        }
+      }
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["title", "data-eco-tooltip"],
+    });
+  })();
 
   // Start WebSocket
   connectWebSocket();

@@ -113,9 +113,9 @@
          ==================================================================== -->
     <main class="main-stage" role="main">
       <div class="hero-voice-container">
-        <!-- Voice State Badge -->
-        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status" style="display: none;">
-          <span id="voiceStateText"></span>
+        <!-- Floating Neural Voice State Indicator -->
+        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status">
+          <span class="badge-text" id="voiceStateText">ECO STANDBY</span>
         </div>
 
         <!-- Central Voice Orb (Canvas Hero) -->
@@ -498,7 +498,7 @@
 
           <div class="mobile-url-box">
             <span class="mobile-url-text" id="mobileUrlDisplay">http://192.168.1.10:8000</span>
-            <button class="btn-secondary" id="btnCopyMobileUrl" style="padding: 6px 12px; font-size: 12px;">Copy</button>
+            <button class="btn-secondary" id="btnCopyMobileUrl" style="padding: 6px 12px; font-size: 12px;" title="Copy Network URL to Clipboard">Copy</button>
           </div>
 
           <div class="mobile-tips-list">
@@ -701,8 +701,8 @@
 
         <!-- Settings Footer Actions -->
         <div class="settings-footer">
-          <button class="btn-secondary" id="btnCancelSettings" style="border-radius: var(--radius-sm);">Cancel</button>
-          <button class="btn-save-settings" id="btnSaveSettings">
+          <button class="btn-secondary" id="btnCancelSettings" style="border-radius: var(--radius-sm);" title="Discard Changes (Esc)">Cancel</button>
+          <button class="btn-save-settings" id="btnSaveSettings" title="Save & Apply Settings (Enter)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
@@ -710,6 +710,19 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       PREMIUM FLOATING TOOLTIP & HOVER POPOVER SYSTEM
+       ==================================================================== -->
+  <div class="eco-tooltip" id="ecoTooltip" role="tooltip" aria-hidden="true">
+    <div class="eco-tooltip-arrow" id="ecoTooltipArrow"></div>
+    <div class="eco-tooltip-inner">
+      <span class="eco-tooltip-indicator" id="ecoTooltipIndicator"></span>
+      <span class="eco-tooltip-text" id="ecoTooltipText"></span>
+      <span class="eco-tooltip-sub" id="ecoTooltipSub"></span>
+      <div class="eco-tooltip-keys" id="ecoTooltipKeys"></div>
     </div>
   </div>
 
