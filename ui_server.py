@@ -308,14 +308,16 @@ class AgentUIManager:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.active_sockets: List[WebSocket] = []
         self.socket_queues: Dict[WebSocket, asyncio.Queue] = {}
+        self.socket_clients: Dict[WebSocket, str] = {}
         self._sockets_lock = threading.Lock()
         self._last_meter_time = 0.0
         self._latest_reply_audio: Optional[bytes] = None
+        self._active_source: str = "laptop"
 
         # Current State
         self.state = "idle"  # idle | listening | hearing | processing | thinking | tool | confirmation | executing | speaking | success | error
         self.last_error = ""
-        self.continuous_listening = False
+        self.continuous_listening = getattr(self.cfg, "continuous_listening", False)
         self._listen_thread: Optional[threading.Thread] = None
         self._listen_active = False
 
@@ -477,10 +479,23 @@ class AgentUIManager:
 
         self.set_state("confirmation", self._pending_confirm_data)
         self.add_timeline("safety", f"Confirmation required for [{shell}]: {command}", risk_info)
+        # Audio routing for confirmation prompt
+        target = (self.cfg.tts_speaker_target or "auto").lower()
+        active_src = getattr(self, "_active_source", "laptop")
+        play_laptop_confirm = (target == "laptop") or (target == "both") or (target == "auto" and active_src != "phone")
+        play_phone_confirm = (target == "phone") or (target == "both") or (target == "auto" and active_src == "phone")
+
+        if play_phone_confirm and self.cfg.tts_enabled:
+            wav_tuple = self.speaker.synth_wav_bytes("Confirmation required. May I run that command?")
+            if wav_tuple:
+                b64_wav = base64.b64encode(wav_tuple[0]).decode("ascii")
+                self._pending_confirm_data["audio"] = f"data:audio/wav;base64,{b64_wav}"
+
         self.broadcast_sync("confirm_request", self._pending_confirm_data)
 
-        # Spoken prompt if speech is enabled
-        self.speaker.say("Confirmation required. May I run that command?", block=False)
+        # Spoken prompt on laptop speakers only if targeted
+        if play_laptop_confirm and self.cfg.tts_enabled:
+            self.speaker.say("Confirmation required. May I run that command?", block=False)
 
         # Wait up to 60 seconds for user action in UI
         got_response = self._pending_confirm_event.wait(timeout=60.0)
@@ -543,6 +558,7 @@ class AgentUIManager:
     # -- Execution Pipeline ------------------------------------------------- #
     def handle_utterance(self, text: str, latency_stt: float = 0.0, source: str = "laptop") -> None:
         """Processes a transcribed or typed user utterance through Ollama and Tools."""
+        self._active_source = source
         text = text.strip()
         if not text:
             self.set_state("idle")
@@ -751,50 +767,59 @@ class AgentUIManager:
         item: Optional[Dict[str, Any]] = None,
         request_text: str = "",
     ) -> None:
-        """Routes spoken reply audio to phone speaker, laptop speaker, or both."""
+        """Routes spoken reply audio strictly to phone speaker, laptop speaker, or both."""
         audio_data_url = None
         target = (self.cfg.tts_speaker_target or "auto").lower()
 
         # Decide whether to play on laptop speakers or on client (phone)
         if target == "phone":
             play_on_laptop = False
-            play_on_client = True
+            play_on_phone = True
+            resolved_target = "phone"
         elif target == "laptop":
             play_on_laptop = True
-            play_on_client = False
+            play_on_phone = False
+            resolved_target = "laptop"
         elif target == "both":
             play_on_laptop = True
-            play_on_client = True
+            play_on_phone = True
+            resolved_target = "both"
         else:  # "auto": respond on the device where instruction originated
-            if source in ("phone", "mobile", "webrtc_phone"):
+            if str(source).lower() in ("phone", "mobile", "webrtc_phone"):
                 play_on_laptop = False
-                play_on_client = True
+                play_on_phone = True
+                resolved_target = "phone"
             else:
                 play_on_laptop = True
-                play_on_client = False
+                play_on_phone = False
+                resolved_target = "laptop"
 
         if self.cfg.tts_enabled:
-            # Synthesize in-memory WAV bytes for client (phone speaker)
-            if play_on_client or target in ("phone", "both"):
+            # Synthesize in-memory WAV bytes ONLY when targeting phone speaker
+            if play_on_phone:
                 wav_tuple = self.speaker.synth_wav_bytes(reply)
                 if wav_tuple:
                     wav_bytes, _ = wav_tuple
                     b64_wav = base64.b64encode(wav_bytes).decode("ascii")
                     audio_data_url = f"data:audio/wav;base64,{b64_wav}"
                     self._latest_reply_audio = wav_bytes
+            else:
+                self._latest_reply_audio = None
 
-        # Broadcast reply with audio data URL to clients (phone receives audio and plays it)
+        # Broadcast reply with audio data URL to clients
         self.broadcast_sync("agent_reply", {
             "item": item or {},
             "request": request_text,
             "reply": reply,
             "latency": item.get("latency", {}) if item else {},
             "source": source,
-            "audio": audio_data_url,
-            "audio_url": f"/api/tts/latest?t={int(time.time()*1000)}" if audio_data_url else None,
-            "play_on_client": play_on_client,
+            "target_device": resolved_target,
+            "audio": audio_data_url if play_on_phone else None,
+            "audio_url": f"/api/tts/latest?t={int(time.time()*1000)}" if (audio_data_url and play_on_phone) else None,
+            "play_on_client": play_on_phone,
+            "play_on_laptop": play_on_laptop,
         })
-        self.add_timeline("reply", f"Agent responded: \"{reply}\"")
+        self.add_timeline("reply", f"Agent responded ({resolved_target}): \"{reply}\"")
 
         # Spoken output
         if self.cfg.tts_enabled:
@@ -824,8 +849,10 @@ class AgentUIManager:
 
     def _run_listening_worker(self) -> None:
         print("[ui_server] Background voice listener started.")
+        consecutive_errors = 0
         while self._listen_active:
             if not self.continuous_listening and self.state != "listening":
+                consecutive_errors = 0
                 time.sleep(0.1)
                 continue
 
@@ -838,14 +865,18 @@ class AgentUIManager:
                 time.sleep(0.1)
                 continue
 
-            self.set_state("listening")
-            self.broadcast_sync("listen_started", {})
+            if self.state != "listening":
+                self.set_state("listening")
+                self.broadcast_sync("listen_started", {})
 
             try:
                 audio = self.recorder.record_utterance()
+                consecutive_errors = 0
             except Exception as e:
-                print(f"[ui_server] record_utterance error: {e}")
-                time.sleep(0.2)
+                consecutive_errors += 1
+                wait_sec = min(5.0, 1.0 * consecutive_errors)
+                print(f"[ui_server] Microphone capture error: {e}. Retrying in {wait_sec:.1f}s...")
+                time.sleep(wait_sec)
                 continue
 
             if audio is None:
@@ -937,6 +968,8 @@ class AgentUIManager:
             },
             "microphone": {
                 "device_index": self.cfg.input_device,
+                "resolved_device": getattr(self.recorder, "resolved_device", None),
+                "device_name": getattr(self.recorder, "device_name", "Default"),
                 "energy_floor": self.cfg.energy_floor,
                 "threshold": getattr(self.recorder, "threshold", self.cfg.energy_floor),
                 "ready": self.recorder is not None,
@@ -998,15 +1031,70 @@ def get_devices() -> JSONResponse:
         devs = sd.query_devices()
         for idx, dev in enumerate(devs):
             if dev.get("max_input_channels", 0) > 0:
+                api_name = ""
+                try:
+                    api_name = sd.query_hostapis(dev.get("hostapi", -1)).get("name", "")
+                except Exception:
+                    pass
+                if "wdm" in api_name.lower() or "kernel" in api_name.lower():
+                    continue
                 devices.append({
                     "index": idx,
                     "name": dev.get("name", f"Device {idx}"),
                     "channels": dev.get("max_input_channels"),
                     "samplerate": dev.get("default_samplerate"),
+                    "api": api_name,
                 })
     except Exception as e:
         print(f"[ui_server] Devices query failed: {e}")
-    return JSONResponse(content={"devices": devices, "current": manager.cfg.input_device})
+
+    active_idx = getattr(manager.recorder, "resolved_device", manager.cfg.input_device) if manager else None
+    active_name = getattr(manager.recorder, "device_name", "Default") if manager else "Default"
+    return JSONResponse(content={
+        "devices": devices,
+        "current": manager.cfg.input_device if manager else None,
+        "active_index": active_idx,
+        "active_name": active_name,
+    })
+
+
+@app.post("/api/test-mic")
+def test_mic(payload: Dict[str, Any] = None) -> JSONResponse:
+    """Sample audio briefly from the active or requested mic to measure input level."""
+    import sounddevice as sd
+    import numpy as np
+    from audio import resolve_input_device
+
+    device_idx = None
+    if payload and "device" in payload:
+        dev_val = payload["device"]
+        if dev_val is not None and int(dev_val) >= 0:
+            device_idx = int(dev_val)
+
+    if device_idx is None:
+        if manager and manager.cfg.input_device is not None:
+            device_idx = manager.cfg.input_device
+        else:
+            device_idx, _ = resolve_input_device()
+
+    try:
+        dev_info = sd.query_devices(device_idx) if device_idx is not None else sd.query_devices(sd.default.device[0])
+        sr = int(dev_info.get("default_samplerate", 16000))
+        # Record 0.8 seconds
+        rec_data = sd.rec(int(sr * 0.8), samplerate=sr, channels=1, device=device_idx, dtype="float32")
+        sd.wait()
+        rms = float(np.sqrt(np.mean(np.square(rec_data)) + 1e-12))
+        peak = float(np.max(np.abs(rec_data)))
+        return JSONResponse(content={
+            "success": True,
+            "device_index": device_idx,
+            "device_name": dev_info.get("name", "Unknown"),
+            "rms": round(rms, 5),
+            "peak": round(peak, 5),
+            "level_percent": min(100, int(peak * 100)),
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.post("/api/query")
@@ -1014,12 +1102,13 @@ async def post_query(payload: Dict[str, Any]) -> JSONResponse:
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
     text = payload.get("text", "").strip()
+    source = payload.get("client") or payload.get("source") or "laptop"
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
     # Run in background thread so HTTP response returns immediately
-    threading.Thread(target=manager.handle_utterance, args=(text,), daemon=True).start()
-    return JSONResponse(content={"status": "processing", "query": text})
+    threading.Thread(target=manager.handle_utterance, args=(text,), kwargs={"source": source}, daemon=True).start()
+    return JSONResponse(content={"status": "processing", "query": text, "source": source})
 
 
 @app.post("/api/confirm")
@@ -1085,6 +1174,7 @@ def post_test_voice(payload: Dict[str, Any]) -> JSONResponse:
     text = payload.get("text") or "Hello. System online and voice agent operational."
     voice = payload.get("voice")
     backend = payload.get("backend")
+    client = str(payload.get("client", "laptop")).lower()
 
     # Generate audio for client (phone speaker) as well
     audio_data_url = None
@@ -1097,23 +1187,26 @@ def post_test_voice(payload: Dict[str, Any]) -> JSONResponse:
     except Exception:
         pass
 
-    def _speak_test() -> None:
-        if voice or backend:
-            import copy
-            trial_cfg = copy.copy(manager.cfg)
-            if voice:
-                trial_cfg.tts_voice = voice
-            if backend:
-                trial_cfg.tts_backend = backend
-            s = Speaker(trial_cfg)
-            try:
-                s.say(text, block=True)
-            finally:
-                s.close()
-        else:
-            manager.speaker.say(text, block=True)
+    # Only play out of laptop speaker if the request originated from laptop/desktop
+    if client != "phone":
+        def _speak_test() -> None:
+            if voice or backend:
+                import copy
+                trial_cfg = copy.copy(manager.cfg)
+                if voice:
+                    trial_cfg.tts_voice = voice
+                if backend:
+                    trial_cfg.tts_backend = backend
+                s = Speaker(trial_cfg)
+                try:
+                    s.say(text, block=True)
+                finally:
+                    s.close()
+            else:
+                manager.speaker.say(text, block=True)
 
-    threading.Thread(target=_speak_test, daemon=True).start()
+        threading.Thread(target=_speak_test, daemon=True).start()
+
     return JSONResponse(content={"status": "speaking", "sample": text, "audio": audio_data_url})
 
 
@@ -1135,6 +1228,17 @@ def get_tts_audio_for_text(text: str) -> Response:
         raise HTTPException(status_code=500, detail="Synthesis failed")
     wav_bytes, _ = wav_tuple
     return Response(content=wav_bytes, media_type="audio/wav")
+
+
+@app.post("/api/tts/speak-local")
+def post_speak_local(payload: Dict[str, Any]) -> JSONResponse:
+    """Trigger local laptop playback for replay requests from desktop clients."""
+    if not manager or not manager.speaker:
+        raise HTTPException(status_code=503, detail="Speaker not ready")
+    text = payload.get("text", "").strip()
+    if text:
+        manager.speaker.say(text, block=False)
+    return JSONResponse(content={"status": "ok"})
 
 
 @app.get("/api/network-info")
@@ -1373,12 +1477,21 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 msg = await queue.get()
                 if msg is None:
                     break
-                await websocket.send_text(msg)
+                try:
+                    await websocket.send_text(msg)
+                except Exception:
+                    break
                 queue.task_done()
         except (WebSocketDisconnect, ConnectionResetError, ConnectionError, asyncio.CancelledError):
             pass
         except Exception:
             pass
+        finally:
+            with manager._sockets_lock:
+                if websocket in manager.active_sockets:
+                    manager.active_sockets.remove(websocket)
+                manager.socket_queues.pop(websocket, None)
+                manager.socket_clients.pop(websocket, None)
 
     sender_task = asyncio.create_task(_client_sender())
 
@@ -1408,15 +1521,27 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 continue
 
             msg_type = msg.get("type")
+            client_tag = msg.get("client") or msg.get("client_type")
+            if client_tag:
+                manager.socket_clients[websocket] = str(client_tag).lower()
+
             if msg_type == "ping":
                 await queue.put(json.dumps({"type": "pong"}))
+
+            elif msg_type == "identify":
+                # Registered client identity (phone vs laptop)
+                pass
 
             elif msg_type == "start_listening":
                 if manager.state in ("idle", "success", "error"):
                     manager.set_state("listening")
-                    manager.broadcast_sync("listen_started", {})
+                    manager.broadcast_sync("listen_started", {"device": "laptop"})
 
-            elif msg_type == "stop_listening":
+            elif msg_type == "stop_listening" or msg_type == "commit_listening":
+                if manager.recorder:
+                    manager.recorder.commit()
+
+            elif msg_type == "cancel_listening":
                 if manager.recorder:
                     manager.recorder.cancel()
                 manager.set_state("idle")
@@ -1424,11 +1549,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             elif msg_type == "toggle_listening":
                 if manager.state == "listening":
                     if manager.recorder:
-                        manager.recorder.cancel()
-                    manager.set_state("idle")
+                        manager.recorder.commit()
                 else:
                     manager.set_state("listening")
-                    manager.broadcast_sync("listen_started", {})
+                    manager.broadcast_sync("listen_started", {"device": "laptop"})
 
             elif msg_type == "toggle_continuous":
                 manager.continuous_listening = not manager.continuous_listening
@@ -1441,7 +1565,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             elif msg_type == "send_text":
                 text = msg.get("text", "").strip()
-                source = msg.get("client", "laptop")
+                source = msg.get("client") or manager.socket_clients.get(websocket, "laptop")
                 if text:
                     threading.Thread(
                         target=manager.handle_utterance,
@@ -1542,11 +1666,18 @@ def run_server(cfg: Config, auto_open: bool = True) -> None:
     protocol = "https" if cfg.ui_ssl else "http"
     url_local = f"{protocol}://localhost:{cfg.ui_port}"
     url_phone = f"{protocol}://{local_ip}:{cfg.ui_port}"
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     print(f"\n=======================================================")
     print(f"  VOICE AGENT COMMAND CENTER & REMOTE CONTROLLER")
-    print(f"  💻 Laptop Display:  {url_local}")
-    print(f"  📱 Phone / Mobile:  {url_phone}")
-    print(f"  🔒 Security:        {'HTTPS (Phone Mic & 60 FPS WebRTC Enabled)' if cfg.ui_ssl else 'HTTP'}")
+    print(f"  [Laptop Display]  {url_local}")
+    print(f"  [Phone / Mobile]  {url_phone}")
+    print(f"  [Security]        {'HTTPS (Phone Mic & 60 FPS WebRTC Enabled)' if cfg.ui_ssl else 'HTTP'}")
     print(f"  Local AI: {cfg.model} @ {cfg.ollama_host}")
     print(f"  Voice: {cfg.tts_backend} ({cfg.tts_voice or 'default'})")
     print(f"=======================================================\n")

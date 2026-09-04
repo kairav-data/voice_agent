@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -25,31 +25,6 @@
         <div class="brand-mark">
           <div class="brand-icon-pulse"></div>
           <span>Voice Agent</span>
-        </div>
-        <span class="brand-version">v2.4</span>
-        <div class="local-badge" title="All reasoning and execution happens locally on your machine">
-          <div class="local-badge-dot"></div>
-          <span>LOCAL AI</span>
-        </div>
-      </div>
-
-      <!-- Live Subsystem Health Indicators -->
-      <div class="system-pills" role="status" aria-label="System status indicators">
-        <div class="sys-pill" id="pillModel" title="Local Ollama Model">
-          <span class="sys-dot" id="dotOllama"></span>
-          <span id="pillModelName">gemma4:31b</span>
-        </div>
-        <div class="sys-pill" id="pillWhisper" title="Faster-Whisper Offline STT">
-          <span class="sys-dot"></span>
-          <span id="pillWhisperName">base.en</span>
-        </div>
-        <div class="sys-pill" id="pillVoice" title="Active Neural Voice Engine">
-          <span class="sys-dot"></span>
-          <span id="pillVoiceName">Piper</span>
-        </div>
-        <div class="sys-pill" id="pillShell" title="Windows Execution Shell">
-          <span class="sys-dot"></span>
-          <span id="pillShellName">PowerShell</span>
         </div>
       </div>
 
@@ -80,6 +55,14 @@
           </svg>
         </button>
 
+        <button class="icon-btn" id="btnOpenConsole" title="Command Runner & Terminal Console (Ctrl+J)" aria-label="Open Command Console" style="position: relative;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          <span class="console-live-dot" id="consoleLiveDot" style="display: none;"></span>
+        </button>
+
         <button class="icon-btn" id="btnOpenTimeline" title="Activity Timeline (Ctrl+T)" aria-label="Open Timeline">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -90,6 +73,23 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </button>
+
+        <button class="icon-btn" id="btnToggleTheme" title="Switch to Dark Theme" aria-label="Toggle Theme">
+          <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
           </svg>
         </button>
 
@@ -160,51 +160,20 @@
               </button>
             </div>
           </div>
-
-          <!-- Tool Execution & Progressive Disclosure Card -->
-          <div class="tool-action-card" id="toolActionCard" style="display: none;">
-            <div class="tool-action-header" id="toolActionHeader" title="Click to view console logs">
-              <div class="tool-info-left">
-                <div class="tool-icon-wrap">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="4 17 10 11 4 5"></polyline>
-                    <line x1="12" y1="19" x2="20" y2="19"></line>
-                  </svg>
-                </div>
-                <div>
-                  <div class="tool-meta-title" id="toolTitle">run_command</div>
-                  <div class="tool-meta-purpose" id="toolPurpose">Executing local process...</div>
-                </div>
-              </div>
-              <div class="tool-info-right">
-                <span class="risk-pill low" id="toolRiskPill">LOW RISK</span>
-                <span class="tool-status-badge running" id="toolStatusBadge">Running...</span>
-              </div>
-            </div>
-
-            <!-- Expandable Terminal Output Block -->
-            <div class="tool-console-panel" id="toolConsolePanel">
-              <div class="console-cmd-line">
-                <span id="toolCommandText">agy -p --dangerously-skip-permissions "inspect"</span>
-                <span style="font-size: 11px; color: var(--text-muted);">PowerShell 7</span>
-              </div>
-              <div class="console-output-block" id="consoleOutput">Starting execution...</div>
-            </div>
-          </div>
         </div>
 
         <!-- Primary Controls & Quick Input Bar -->
         <div class="controls-stage">
           <div class="primary-voice-controls">
-            <button class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold Spacebar to Talk">
+            <button class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold to Talk or Click to Toggle (Alt+M or Tilde ~)" title="Hold Alt+M (or Tilde ~) to Talk, or Click to Toggle">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="23"></line>
                 <line x1="8" y1="23" x2="16" y2="23"></line>
               </svg>
-              <span>Hold to Talk</span>
-              <kbd class="kbd-badge">Space</kbd>
+              <span id="pushToTalkLabel">Hold / Tap to Talk</span>
+              <kbd class="kbd-badge" title="Hold Alt+M to talk, release to send">Alt + M</kbd>
             </button>
           </div>
 
@@ -222,11 +191,11 @@
           <!-- Interactive Starter Chips -->
           <div class="empty-state-section">
             <div class="starter-chips-row">
-              <button class="starter-chip" data-prompt="Open Antigravity CLI">⚡ Open Antigravity CLI</button>
-              <button class="starter-chip" data-prompt="Show running processes">💻 Show running processes</button>
-              <button class="starter-chip" data-prompt="Check free disk space">💾 Check free disk space</button>
-              <button class="starter-chip" data-prompt="What is my IP address?">🌐 What is my IP address?</button>
-              <button class="starter-chip" data-prompt="List files in current folder">📁 List files in project</button>
+              <button class="starter-chip" data-prompt="Open Antigravity CLI">Open Antigravity CLI</button>
+              <button class="starter-chip" data-prompt="Show running processes">Show running processes</button>
+              <button class="starter-chip" data-prompt="Check free disk space">Check free disk space</button>
+              <button class="starter-chip" data-prompt="What is my IP address?">What is my IP address?</button>
+              <button class="starter-chip" data-prompt="List files in current folder">List files in project</button>
             </div>
           </div>
         </div>
@@ -336,6 +305,67 @@
         </div>
       </div>
       <div class="drawer-content" id="timelineContent"></div>
+    </aside>
+
+    <!-- ====================================================================
+         COMMAND RUNNER & TERMINAL CONSOLE DRAWER (ANCHORED TO RIGHT)
+         ==================================================================== -->
+    <aside class="drawer-panel right-drawer console-drawer" id="consoleDrawer" aria-label="Command Runner Console">
+      <div class="drawer-header">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div class="tool-icon-wrap" style="color: var(--accent-cyan);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 style="font-size: 14px; font-weight: 700; margin: 0;">Command Runner</h3>
+            <span id="toolConsoleSubtitle" style="font-size: 11px; color: var(--text-muted);">Terminal Execution Stream</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="risk-pill low" id="toolRiskPill">READY</span>
+          <span class="tool-status-badge completed" id="toolStatusBadge">Idle</span>
+          <button class="icon-btn" id="btnCopyConsole" title="Copy Output" aria-label="Copy Output" style="width: 32px; height: 32px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btnCloseConsole" title="Hide Console (Ctrl+J or Esc)" aria-label="Hide Console" style="width: 32px; height: 32px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="drawer-content custom-scroll" id="consoleDrawerContent" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+        <!-- Active Tool Meta Card -->
+        <div class="tool-meta-box">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700;">Tool Target</span>
+            <span class="tool-meta-title" id="toolTitle" style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan);">run_command</span>
+          </div>
+          <div class="tool-meta-purpose" id="toolPurpose" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">No command running. Ready to execute.</div>
+        </div>
+
+        <!-- Terminal Command Line -->
+        <div class="console-cmd-line" style="margin-bottom: 0;">
+          <span id="toolCommandText">Waiting for agent action...</span>
+          <span id="toolShellTag" style="font-size: 10.5px; color: var(--text-muted); font-family: var(--font-mono);">PowerShell 7</span>
+        </div>
+
+        <!-- Terminal Live Output Block -->
+        <div class="console-output-container">
+          <div class="console-header-row">
+            <span>STDOUT / STDERR</span>
+            <span id="consoleOutputTimestamp">--:--:--</span>
+          </div>
+          <div class="console-output-block custom-scroll" id="consoleOutput">(Terminal idle. Executed commands and outputs appear here.)</div>
+        </div>
+      </div>
     </aside>
 
     <!-- ====================================================================
@@ -570,6 +600,50 @@
                   <option value="phone">Phone Speaker Only</option>
                   <option value="laptop">Laptop Speaker Only</option>
                   <option value="both">Both Phone & Laptop Speakers</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2.5: Microphone & Audio Input -->
+          <div class="settings-section-card">
+            <div class="settings-section-header">
+              <span class="section-icon">🎙️</span>
+              <span class="section-title">Microphone & Audio Input</span>
+            </div>
+
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <div>
+                  <label class="form-label" for="settingMicDevice">Input Microphone</label>
+                  <span class="form-sublabel">Select Bluetooth headset or laptop microphone</span>
+                </div>
+                <button class="btn-secondary btn-mini" id="btnTestMic" type="button" title="Test audio signal on this microphone">
+                  <span>🎙️ Test Mic</span>
+                </button>
+              </div>
+              <div class="select-wrap">
+                <select class="form-select" id="settingMicDevice"></select>
+              </div>
+              <!-- Live Mic Meter -->
+              <div id="micTestBarWrap" class="mic-test-bar-wrap">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px;">
+                  <span id="micTestStatusText">Listening to mic...</span>
+                  <span id="micTestLevelText" style="color: var(--accent-cyan); font-weight: 600;">0%</span>
+                </div>
+                <div class="mic-test-track">
+                  <div id="micTestBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-cyan), #10b981); border-radius: 4px; transition: width 0.1s ease;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="settingContinuousListening">Hands-Free Continuous Listening</label>
+              <span class="form-sublabel">Automatically listen for your voice continuously without needing to tap the mic</span>
+              <div class="select-wrap">
+                <select class="form-select" id="settingContinuousListening">
+                  <option value="false">Push-to-Talk / Click to Speak (Manual)</option>
+                  <option value="true">Continuous Hands-Free Listening (Always On)</option>
                 </select>
               </div>
             </div>

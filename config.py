@@ -50,6 +50,7 @@ class Config:
     max_utterance_s: float = _env_float("MAX_UTTERANCE", 30.0)
     energy_multiplier: float = _env_float("ENERGY_MULT", 3.0)   # x measured noise floor
     energy_floor: float = _env_float("ENERGY_FLOOR", 0.012)     # absolute minimum RMS
+    continuous_listening: bool = _env("CONTINUOUS", "0") == "1"
 
     # ---------------- Text to speech ----------------
     # backend: auto | piper (offline neural) | edge (online neural) | sapi (robotic)

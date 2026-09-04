@@ -47,6 +47,12 @@ class VoiceAgent:
             print(f"[stt] loading whisper '{cfg.whisper_model}' ({cfg.whisper_device})...")
             self.stt = Transcriber(cfg)
             self.recorder = Recorder(cfg)
+            dev_desc = (
+                f"'{self.recorder.device_name}' (device {self.recorder.resolved_device})"
+                if self.recorder.resolved_device is not None
+                else f"System Default ('{self.recorder.device_name}')"
+            )
+            print(f"[mic] input device: {dev_desc}")
             print("[mic] calibrating noise floor, stay quiet for a second...")
             level = self.recorder.calibrate()
             print(f"[mic] speech threshold = {level:.4f}")
@@ -180,6 +186,8 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.tts_rate = args.rate
     if args.wake:
         cfg.wake_word = args.wake
+    if hasattr(args, "continuous") and args.continuous:
+        cfg.continuous_listening = True
     if hasattr(args, "ssl") and args.ssl is not None:
         cfg.ui_ssl = args.ssl
     if hasattr(args, "no_ssl") and args.no_ssl:
@@ -192,6 +200,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="STT -> Ollama -> TTS agent with shell control")
     p.add_argument("--ui", action="store_true", help="launch the futuristic web command center")
     p.add_argument("--port", type=int, help="port for the UI command center (default: 8000)")
+    p.add_argument("--continuous", action="store_true", help="enable continuous hands-free listening")
     p.add_argument("--ssl", action="store_true", default=None, help="enable HTTPS for phone microphone access")
     p.add_argument("--no-ssl", action="store_true", help="disable HTTPS")
     p.add_argument("--text", action="store_true", help="type instead of speaking")

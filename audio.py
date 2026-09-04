@@ -15,11 +15,99 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import Callable
 
 import numpy as np
 import sounddevice as sd
 
 from config import Config
+
+
+def resolve_input_device(requested_device: int | None = None) -> tuple[int | None, str]:
+    """Resolve the best input device index.
+
+    If an explicit device index is passed (>= 0), return it and its name.
+    If None is requested, scan for connected Bluetooth or wireless headsets.
+    If a Bluetooth headset is connected, automatically select its microphone
+    (preferring DirectSound or MME, completely ignoring unstable WDM-KS devices).
+    Otherwise, fall back to the system default input device.
+
+    Returns: (device_index_or_None, device_display_name)
+    """
+    try:
+        devices = sd.query_devices()
+        apis = sd.query_hostapis()
+        total = len(devices)
+
+        def is_safe_api(hostapi_idx: int) -> bool:
+            if 0 <= hostapi_idx < len(apis):
+                aname = apis[hostapi_idx].get("name", "").lower()
+                return "wdm" not in aname and "kernel" not in aname
+            return True
+
+        # 1. Explicit user request (ensure it's not a buggy WDM-KS device)
+        if requested_device is not None and requested_device >= 0:
+            if requested_device < total:
+                d = devices[requested_device]
+                if is_safe_api(d.get("hostapi", -1)):
+                    return requested_device, d.get("name", f"Device {requested_device}")
+            # If requested device is invalid or WDM-KS, fall through to auto-detect
+
+        # 2. Check system default endpoints
+        def_out_idx = sd.default.device[1]
+        def_in_idx = sd.default.device[0]
+
+        bt_keywords = (
+            "bluetooth", "wireless", "headset", "hands-free", "buds",
+            "airpods", "oneplus", "galaxy buds", "earphone", "bthhfenum"
+        )
+
+        is_bt_output = False
+        out_name = ""
+        if 0 <= def_out_idx < total:
+            out_name = devices[def_out_idx].get("name", "").lower()
+            if any(k in out_name for k in bt_keywords):
+                is_bt_output = True
+
+        candidates: list[tuple[int, int, str]] = []
+        for i, d in enumerate(devices):
+            if d.get("max_input_channels", 0) > 0:
+                hostapi = d.get("hostapi", -1)
+                if not is_safe_api(hostapi):
+                    continue  # Strictly avoid WDM-KS
+
+                name = d.get("name", "").lower()
+                if any(k in name for k in bt_keywords):
+                    score = 0
+                    api_name = apis[hostapi]["name"].lower() if 0 <= hostapi < len(apis) else ""
+                    # DirectSound is most reliable on Windows Bluetooth, followed by MME & WASAPI
+                    if "directsound" in api_name:
+                        score += 30
+                    elif "mme" in api_name:
+                        score += 20
+                    elif "wasapi" in api_name:
+                        score += 15
+
+                    if is_bt_output and out_name:
+                        cleaned_words = out_name.replace("(", " ").replace(")", " ").replace("-", " ").split()
+                        for word in cleaned_words:
+                            if len(word) > 3 and word in name:
+                                score += 5
+                    candidates.append((score, i, d.get("name", f"Device {i}")))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            best_idx = candidates[0][1]
+            best_name = candidates[0][2]
+            return best_idx, best_name
+
+        # 3. Fall back to system default input
+        if 0 <= def_in_idx < total and is_safe_api(devices[def_in_idx].get("hostapi", -1)):
+            return None, devices[def_in_idx].get("name", "System Default")
+    except Exception as e:
+        print(f"[audio] Warning resolving audio input device: {e}")
+
+    return None, "System Default"
 
 
 # --------------------------------------------------------------------------- #
@@ -44,10 +132,12 @@ class Recorder:
         self.on_meter = on_meter
         self.on_speech_start = on_speech_start
         self.on_speech_end = on_speech_end
+        self.resolved_device, self.device_name = resolve_input_device(cfg.input_device)
         self.frame_len = int(cfg.samplerate * cfg.frame_ms / 1000)
         self.threshold = cfg.energy_floor
         self._q: queue.Queue[np.ndarray] = queue.Queue()
         self._stop_event = threading.Event()
+        self._commit_event = threading.Event()
 
     # -- helpers ----------------------------------------------------------- #
     @staticmethod
@@ -66,14 +156,26 @@ class Recorder:
                 pass
 
     def _open_stream(self) -> sd.InputStream:
-        return sd.InputStream(
-            samplerate=self.cfg.samplerate,
-            blocksize=self.frame_len,
-            device=self.cfg.input_device,
-            channels=1,
-            dtype="float32",
-            callback=self._callback,
-        )
+        dev = self.resolved_device
+        try:
+            return sd.InputStream(
+                samplerate=self.cfg.samplerate,
+                blocksize=self.frame_len,
+                device=dev,
+                channels=1,
+                dtype="float32",
+                callback=self._callback,
+            )
+        except Exception as e:
+            print(f"[audio] Warning: could not open device {dev} ({e}), falling back to default device")
+            return sd.InputStream(
+                samplerate=self.cfg.samplerate,
+                blocksize=self.frame_len,
+                device=None,
+                channels=1,
+                dtype="float32",
+                callback=self._callback,
+            )
 
     # -- public ------------------------------------------------------------ #
     def calibrate(self, seconds: float = 1.0) -> float:
@@ -99,13 +201,18 @@ class Recorder:
                 break
 
     def cancel(self) -> None:
-        """Cancel current recording immediately."""
+        """Cancel current recording immediately and discard audio."""
         self._stop_event.set()
+
+    def commit(self) -> None:
+        """Commit current recording immediately and return recorded audio for transcription."""
+        self._commit_event.set()
 
     def record_utterance(self) -> np.ndarray | None:
         """Block until the user speaks, then return float32 mono audio at 16 kHz."""
         cfg = self.cfg
         self._stop_event.clear()
+        self._commit_event.clear()
         preroll_frames = max(1, int(0.3 * 1000 / cfg.frame_ms))
         hangover_frames = max(1, int(cfg.silence_hangover_s * 1000 / cfg.frame_ms))
         min_speech_frames = max(1, int(cfg.min_speech_s * 1000 / cfg.frame_ms))
@@ -113,6 +220,7 @@ class Recorder:
 
         preroll: list[np.ndarray] = []
         voiced: list[np.ndarray] = []
+        all_frames: list[np.ndarray] = []
         started = False
         loud_streak = 0
         quiet_streak = 0
@@ -124,11 +232,26 @@ class Recorder:
                     self._stop_event.clear()
                     return None
 
+                if self._commit_event.is_set():
+                    self._commit_event.clear()
+                    if self.on_speech_end:
+                        try:
+                            self.on_speech_end()
+                        except Exception:
+                            pass
+                    if voiced:
+                        break
+                    if all_frames:
+                        voiced = list(all_frames)
+                        break
+                    return None
+
                 try:
                     frame = self._q.get(timeout=0.2)
                 except queue.Empty:
                     continue
 
+                all_frames.append(frame)
                 level = self._rms(frame)
                 if not started:
                     preroll.append(frame)
@@ -156,7 +279,7 @@ class Recorder:
                             pass
                     break
 
-        if len(voiced) - hangover_frames < min_speech_frames:
+        if not voiced or len(voiced) < 3:
             return None
         return np.concatenate(voiced).astype(np.float32)
 

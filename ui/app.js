@@ -14,15 +14,21 @@
   const userUtterance = document.getElementById("userUtterance");
   const agentResponseBox = document.getElementById("agentResponseBox");
   const agentResponseText = document.getElementById("agentResponseText");
-  const toolActionCard = document.getElementById("toolActionCard");
-  const toolConsolePanel = document.getElementById("toolConsolePanel");
-  const toolActionHeader = document.getElementById("toolActionHeader");
+
+  // Command Runner Console Drawer
+  const consoleDrawer = document.getElementById("consoleDrawer");
+  const btnOpenConsole = document.getElementById("btnOpenConsole");
+  const btnCloseConsole = document.getElementById("btnCloseConsole");
+  const btnCopyConsole = document.getElementById("btnCopyConsole");
+  const consoleLiveDot = document.getElementById("consoleLiveDot");
   const toolTitle = document.getElementById("toolTitle");
   const toolPurpose = document.getElementById("toolPurpose");
   const toolRiskPill = document.getElementById("toolRiskPill");
   const toolStatusBadge = document.getElementById("toolStatusBadge");
   const toolCommandText = document.getElementById("toolCommandText");
+  const toolShellTag = document.getElementById("toolShellTag");
   const consoleOutput = document.getElementById("consoleOutput");
+  const consoleOutputTimestamp = document.getElementById("consoleOutputTimestamp");
 
   const btnPushToTalk = document.getElementById("btnPushToTalk");
   const btnStopInterrupt = document.getElementById("btnStopInterrupt");
@@ -44,6 +50,43 @@
   const settingsModal = document.getElementById("settingsModal");
   const btnOpenSettings = document.getElementById("btnOpenSettings");
   const btnCloseSettings = document.getElementById("btnCloseSettings");
+
+  // Theme Management (Light / Luxury White default, with Dark Mode toggle)
+  const btnToggleTheme = document.getElementById("btnToggleTheme");
+  const themeSunIcon = btnToggleTheme ? btnToggleTheme.querySelector(".theme-icon-sun") : null;
+  const themeMoonIcon = btnToggleTheme ? btnToggleTheme.querySelector(".theme-icon-moon") : null;
+
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.setAttribute("data-theme", "dark");
+      if (themeSunIcon) themeSunIcon.style.display = "block";
+      if (themeMoonIcon) themeMoonIcon.style.display = "none";
+      if (btnToggleTheme) btnToggleTheme.setAttribute("title", "Switch to Light Theme");
+    } else {
+      root.setAttribute("data-theme", "light");
+      if (themeSunIcon) themeSunIcon.style.display = "none";
+      if (themeMoonIcon) themeMoonIcon.style.display = "block";
+      if (btnToggleTheme) btnToggleTheme.setAttribute("title", "Switch to Dark Theme");
+    }
+    try {
+      localStorage.setItem("voice_agent_theme", theme);
+    } catch (e) {}
+  }
+
+  let savedTheme = "light";
+  try {
+    savedTheme = localStorage.getItem("voice_agent_theme") || "light";
+  } catch (e) {}
+  applyTheme(savedTheme);
+
+  if (btnToggleTheme) {
+    btnToggleTheme.addEventListener("click", () => {
+      const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+      const newTheme = currentTheme === "light" ? "dark" : "light";
+      applyTheme(newTheme);
+    });
+  }
 
   const historyDrawer = document.getElementById("historyDrawer");
   const btnOpenHistory = document.getElementById("btnOpenHistory");
@@ -87,6 +130,17 @@
     vizStrip.appendChild(bar);
     vizBars.push(bar);
   }
+
+  // Device Detection & Audio Routing: Explicit isolation between Phone and Laptop
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramDevice = (urlParams.get("device") || urlParams.get("client") || "").toLowerCase();
+  const isMobileDevice = (paramDevice === "phone" || paramDevice === "mobile")
+    ? true
+    : (paramDevice === "laptop" || paramDevice === "desktop")
+      ? false
+      : (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  const clientDeviceType = isMobileDevice ? "phone" : "laptop";
 
   // Audio Cues via Web Audio API
   let audioCtx = null;
@@ -237,19 +291,24 @@
     stateBadge.className = `voice-state-badge state-${newState}`;
     stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
 
-    // Update Center Label
+    // Update Center Label & Mic Button
+    const pushToTalkLabel = document.getElementById("pushToTalkLabel");
     if (newState === "listening") {
       orbCenterLabel.textContent = "Listening";
       btnPushToTalk.classList.add("active");
+      if (pushToTalkLabel) pushToTalkLabel.textContent = "Listening... (Alt+M)";
     } else if (newState === "thinking") {
       orbCenterLabel.textContent = "Thinking";
       btnPushToTalk.classList.remove("active");
+      if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     } else if (newState === "speaking") {
       orbCenterLabel.textContent = "Speaking";
       btnPushToTalk.classList.remove("active");
+      if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     } else {
       orbCenterLabel.textContent = "Press to Talk";
       btnPushToTalk.classList.remove("active");
+      if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     }
 
     // Toggle Interrupt button visibility during active speech or execution
@@ -273,8 +332,9 @@
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
-      console.log("[ws] Connected to Voice Agent Command Center");
+      console.log(`[ws] Connected to Voice Agent Command Center (${clientDeviceType})`);
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      sendWS("identify", { client_type: clientDeviceType });
     };
 
     socket.onmessage = (evt) => {
@@ -298,8 +358,7 @@
 
   function sendWS(type, data) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-      const client = isMobileDevice ? "phone" : "laptop";
-      socket.send(JSON.stringify({ type, client, ...(data || {}) }));
+      socket.send(JSON.stringify({ type, client: clientDeviceType, ...(data || {}) }));
     }
   }
 
@@ -323,7 +382,10 @@
       updateVisualizer(msg.level);
 
     } else if (type === "listen_started") {
-      playSoundCue("listen");
+      const listenDevice = msg.device || "laptop";
+      if (listenDevice === "both" || listenDevice === clientDeviceType) {
+        playSoundCue("listen");
+      }
       updateState("listening");
 
     } else if (type === "transcription_result") {
@@ -331,7 +393,14 @@
       userUtterance.classList.remove("is-placeholder");
 
     } else if (type === "agent_reply") {
-      playSoundCue("done");
+      const targetDevice = msg.target_device || (msg.play_on_client ? "phone" : "laptop");
+      const isTargetMe = targetDevice === "both" || targetDevice === clientDeviceType;
+
+      // Only play completion audio chime on the device targeted for the response
+      if (isTargetMe) {
+        playSoundCue("done");
+      }
+
       agentResponseText.textContent = msg.reply;
       agentResponseBox.style.display = "inline-flex";
       if (msg.item) addHistoryItem(msg.item);
@@ -339,11 +408,12 @@
       lastReplyText = msg.reply || "";
       lastReplyAudio = msg.audio || msg.audio_url || null;
 
-      // Spoken response playback on client (phone speaker):
-      // If msg.play_on_client is true (e.g. instruction came from phone),
-      // OR if this client is on mobile and audio is present:
-      const shouldPlayOnThisDevice = msg.play_on_client || (isMobileDevice && msg.source === "phone") || (isMobileDevice && msg.audio);
-      if (shouldPlayOnThisDevice && (msg.audio || msg.reply)) {
+      // Strict Audio Isolation:
+      // When target is phone/both and THIS client is a phone, play spoken response on phone speaker.
+      // The laptop browser NEVER plays automatic reply audio via browser Audio because
+      // the laptop speaker/Bluetooth earphone is driven natively by the Python backend via self.speaker.say().
+      const shouldPlayOnThisDevice = (clientDeviceType === "phone") && (targetDevice === "phone" || targetDevice === "both");
+      if (shouldPlayOnThisDevice && (msg.audio || msg.audio_url || msg.reply)) {
         playSpokenReply(msg.audio || msg.audio_url, msg.reply);
       }
 
@@ -373,6 +443,17 @@
       toolActionCard.style.display = "none";
 
     } else if (type === "interrupted") {
+      if (clientAudio) {
+        try {
+          clientAudio.pause();
+          clientAudio.currentTime = 0;
+        } catch (e) {}
+      }
+      if (window.speechSynthesis) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
+      }
       updateState("idle");
     }
   }
@@ -394,16 +475,27 @@
   // System UI status bar
   function updateSystemUI(sys) {
     if (!sys) return;
-    document.getElementById("pillModelName").textContent = sys.ollama?.current_model || "Ollama";
-    document.getElementById("pillWhisperName").textContent = sys.whisper?.model || "Whisper";
-    document.getElementById("pillVoiceName").textContent = sys.tts?.voice || sys.tts?.backend || "Voice";
-    document.getElementById("pillShellName").textContent = sys.safety?.default_shell || "PowerShell";
+    const pModel = document.getElementById("pillModelName");
+    if (pModel) pModel.textContent = sys.ollama?.current_model || "Ollama";
+    const pWhisper = document.getElementById("pillWhisperName");
+    if (pWhisper) pWhisper.textContent = sys.whisper?.model || "Whisper";
+    const pVoice = document.getElementById("pillVoiceName");
+    if (pVoice) pVoice.textContent = sys.tts?.voice || sys.tts?.backend || "Voice";
+    const pShell = document.getElementById("pillShellName");
+    if (pShell) pShell.textContent = sys.safety?.default_shell || "PowerShell";
+
+    const pillDev = document.getElementById("pillDeviceName");
+    if (pillDev) {
+      pillDev.textContent = clientDeviceType === "phone" ? "Phone Audio" : "Laptop Audio";
+    }
 
     const dotOllama = document.getElementById("dotOllama");
-    if (sys.ollama?.online) {
-      dotOllama.className = "sys-dot";
-    } else {
-      dotOllama.className = "sys-dot error";
+    if (dotOllama) {
+      if (sys.ollama?.online) {
+        dotOllama.className = "sys-dot";
+      } else {
+        dotOllama.className = "sys-dot error";
+      }
     }
 
     updateContinuousUI(sys.continuous_listening);
@@ -423,50 +515,72 @@
     }
   }
 
-  // Tool Card Progressive Disclosure
+  // Tool Command Execution Handler
   function showToolCard(data) {
-    toolActionCard.style.display = "block";
-    toolActionCard.classList.add("executing");
+    if (consoleLiveDot) {
+      consoleLiveDot.style.display = "block";
+      consoleLiveDot.className = "console-live-dot running";
+    }
     const args = data.args || {};
-    toolTitle.textContent = `${data.name || "Command"}`;
-    toolPurpose.textContent = args.purpose || args.command || "Executing action...";
-    toolRiskPill.textContent = "EXECUTING";
-    toolRiskPill.className = "risk-pill medium";
-    toolStatusBadge.textContent = "Running...";
-    toolStatusBadge.className = "tool-status-badge running";
-    toolCommandText.textContent = args.command || "";
-    consoleOutput.textContent = "Starting process...";
+    if (toolTitle) toolTitle.textContent = `${data.name || "run_command"}`;
+    if (toolPurpose) toolPurpose.textContent = args.purpose || args.command || "Executing action...";
+    if (toolRiskPill) {
+      toolRiskPill.textContent = "RUNNING";
+      toolRiskPill.className = "risk-pill medium";
+    }
+    if (toolStatusBadge) {
+      toolStatusBadge.textContent = "Running...";
+      toolStatusBadge.className = "tool-status-badge running";
+    }
+    if (toolCommandText) toolCommandText.textContent = args.command || args.app_name_or_url || args.query || "";
+    if (consoleOutputTimestamp) {
+      const now = new Date();
+      consoleOutputTimestamp.textContent = now.toTimeString().split(" ")[0];
+    }
+    if (consoleOutput) consoleOutput.textContent = "Starting process...\n";
   }
 
   function completeToolCard(data) {
-    toolActionCard.classList.remove("executing");
-    toolStatusBadge.textContent = `Completed`;
-    toolStatusBadge.className = "tool-status-badge completed";
-    toolRiskPill.textContent = "SUCCESS";
-    toolRiskPill.className = "risk-pill low";
+    if (consoleLiveDot) {
+      consoleLiveDot.style.display = "block";
+      consoleLiveDot.className = "console-live-dot completed";
+    }
+    if (toolStatusBadge) {
+      toolStatusBadge.textContent = `Completed`;
+      toolStatusBadge.className = "tool-status-badge completed";
+    }
+    if (toolRiskPill) {
+      toolRiskPill.textContent = "SUCCESS";
+      toolRiskPill.className = "risk-pill low";
+    }
+    if (consoleOutputTimestamp) {
+      const now = new Date();
+      consoleOutputTimestamp.textContent = now.toTimeString().split(" ")[0];
+    }
 
     try {
       const res = JSON.parse(data.result || "{}");
-      consoleOutput.innerHTML = "";
-      if (res.stdout) {
-        const span = document.createElement("span");
-        span.textContent = res.stdout;
-        consoleOutput.appendChild(span);
-      }
-      if (res.stderr) {
-        const errSpan = document.createElement("span");
-        errSpan.className = "stderr";
-        errSpan.textContent = "\n" + res.stderr;
-        consoleOutput.appendChild(errSpan);
+      if (consoleOutput) {
+        consoleOutput.innerHTML = "";
+        if (res.stdout) {
+          const span = document.createElement("span");
+          span.textContent = res.stdout;
+          consoleOutput.appendChild(span);
+        }
+        if (res.stderr) {
+          const errSpan = document.createElement("span");
+          errSpan.className = "stderr";
+          errSpan.textContent = (res.stdout ? "\n" : "") + res.stderr;
+          consoleOutput.appendChild(errSpan);
+        }
+        if (!res.stdout && !res.stderr) {
+          consoleOutput.textContent = data.result || "(Process exited with code 0. No output.)";
+        }
       }
     } catch (e) {
-      consoleOutput.textContent = data.result || "(no output)";
+      if (consoleOutput) consoleOutput.textContent = data.result || "(Execution completed)";
     }
   }
-
-  toolActionHeader.addEventListener("click", () => {
-    toolConsolePanel.classList.toggle("expanded");
-  });
 
   // Safety Confirmation Modal
   function showConfirmationModal(data) {
@@ -478,6 +592,10 @@
     confirmCategoryVal.textContent = data.category || "Local System";
     confirmAffectedVal.textContent = data.affected || "Local Machine";
     confirmModal.classList.add("active");
+
+    if (clientDeviceType === "phone" && data.audio) {
+      playSpokenReply(data.audio, "Confirmation required. May I run that command?");
+    }
   }
 
   function hideConfirmationModal() {
@@ -500,12 +618,21 @@
   });
 
   // Push to talk & Microphone interaction
-  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   let isTalking = false;
+  let talkStartTime = 0;
+  let isAltMHeld = false;
+  let isCtrlSpaceHeld = false;
+  let isTildeHeld = false;
+  let isPointerHeld = false;
 
   function startTalking() {
     if (isTalking) return;
     isTalking = true;
+    talkStartTime = Date.now();
+    btnPushToTalk.classList.add("active");
+    const label = document.getElementById("pushToTalkLabel");
+    if (label) label.textContent = "Listening... (Release to Send)";
+
     if (isMobileDevice) {
       startPhoneRecording();
     } else {
@@ -516,6 +643,10 @@
   function stopTalking() {
     if (!isTalking) return;
     isTalking = false;
+    btnPushToTalk.classList.remove("active");
+    const label = document.getElementById("pushToTalkLabel");
+    if (label) label.textContent = "Hold / Tap to Talk";
+
     if (isMobileDevice) {
       stopPhoneRecording();
     } else {
@@ -523,37 +654,53 @@
     }
   }
 
-  btnPushToTalk.addEventListener("mousedown", startTalking);
-  btnPushToTalk.addEventListener("mouseup", stopTalking);
-  btnPushToTalk.addEventListener("mouseleave", () => {
-    if (isTalking) stopTalking();
-  });
-
-  btnPushToTalk.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    startTalking();
-  }, { passive: false });
-  btnPushToTalk.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    stopTalking();
-  }, { passive: false });
-  btnPushToTalk.addEventListener("touchcancel", () => {
-    if (isTalking) stopTalking();
-  });
-
-  orbWrapper.addEventListener("click", () => {
-    if (isMobileDevice) {
-      if (isMobileRecording) {
-        stopPhoneRecording();
-      } else {
-        startPhoneRecording();
-      }
+  function toggleTalking() {
+    if (isTalking) {
+      stopTalking();
     } else {
-      sendWS("toggle_listening");
+      startTalking();
+    }
+  }
+
+  // Pointer/Mouse events on Unmute / Talk button: supports BOTH Tap-to-Toggle AND Hold-to-Talk
+  btnPushToTalk.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return; // primary mouse button only
+    e.preventDefault();
+    isPointerHeld = true;
+    if (isTalking) {
+      stopTalking();
+    } else {
+      startTalking();
     }
   });
 
+  btnPushToTalk.addEventListener("pointerup", (e) => {
+    if (!isPointerHeld) return;
+    isPointerHeld = false;
+    const elapsed = Date.now() - talkStartTime;
+    // If held for more than 350ms, this was a push-to-talk hold: release to send!
+    if (elapsed > 350 && isTalking) {
+      stopTalking();
+    }
+  });
+
+  btnPushToTalk.addEventListener("pointercancel", () => {
+    if (isPointerHeld) {
+      isPointerHeld = false;
+      if (isTalking) stopTalking();
+    }
+  });
+
+  orbWrapper.addEventListener("click", () => {
+    toggleTalking();
+  });
+
   btnStopInterrupt.addEventListener("click", () => {
+    isTalking = false;
+    isAltMHeld = false;
+    isCtrlSpaceHeld = false;
+    isTildeHeld = false;
+    isPointerHeld = false;
     sendWS("stop");
   });
 
@@ -561,16 +708,56 @@
     sendWS("toggle_continuous");
   });
 
-  // Keyboard Shortcuts
+  // Keyboard Shortcuts: Hybrid Push-to-Talk (Hold while speaking) & Press-to-Talk (Tap once to toggle)
   window.addEventListener("keydown", (e) => {
-    // Spacebar Push-to-Talk (only if not typing in input)
-    if (e.code === "Space" && document.activeElement !== inputPrompt) {
+    // 1. Alt + M (Industry standard Zoom/Teams/Meet shortcut)
+    if (e.altKey && (e.key.toLowerCase() === "m" || e.code === "KeyM")) {
       e.preventDefault();
-      startTalking();
+      if (e.repeat) return; // Prevent OS auto-repeat while holding!
+      if (!isAltMHeld) {
+        isAltMHeld = true;
+        if (isTalking) {
+          stopTalking();
+        } else {
+          startTalking();
+        }
+      }
+      return;
+    }
+
+    // 2. Ctrl + Space (Quick wake shortcut)
+    if ((e.ctrlKey || e.metaKey) && (e.code === "Space" || e.key === " ")) {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (!isCtrlSpaceHeld) {
+        isCtrlSpaceHeld = true;
+        if (isTalking) {
+          stopTalking();
+        } else {
+          startTalking();
+        }
+      }
+      return;
+    }
+
+    // 3. Backquote / Tilde (`) - 1-key Gaming / Discord Push-to-Talk (only if not typing)
+    if (e.code === "Backquote" && document.activeElement !== inputPrompt) {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (!isTildeHeld) {
+        isTildeHeld = true;
+        startTalking();
+      }
+      return;
     }
 
     // Escape to Dismiss or Interrupt
     if (e.code === "Escape") {
+      isTalking = false;
+      isAltMHeld = false;
+      isCtrlSpaceHeld = false;
+      isTildeHeld = false;
+      isPointerHeld = false;
       if (screenMirrorOverlay.style.display !== "none") {
         toggleScreenMirror(false);
       } else if (mobileConnectModal.classList.contains("active")) {
@@ -579,9 +766,11 @@
         btnConfirmDecline.click();
       } else if (settingsModal.classList.contains("active")) {
         settingsModal.classList.remove("active");
-      } else if (timelineDrawer.classList.contains("open")) {
+      } else if (consoleDrawer && consoleDrawer.classList.contains("open")) {
+        toggleConsoleDrawer(false);
+      } else if (timelineDrawer && timelineDrawer.classList.contains("open")) {
         toggleTimelineDrawer(false);
-      } else if (historyDrawer.classList.contains("open")) {
+      } else if (historyDrawer && historyDrawer.classList.contains("open")) {
         toggleHistoryDrawer(false);
       } else {
         sendWS("stop");
@@ -597,6 +786,12 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
       inputPrompt.focus();
+    }
+
+    // Ctrl + J to toggle Command Runner Console
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+      e.preventDefault();
+      toggleConsoleDrawer();
     }
 
     // Ctrl + L to clear history
@@ -631,9 +826,46 @@
   });
 
   window.addEventListener("keyup", (e) => {
-    if (e.code === "Space" && document.activeElement !== inputPrompt) {
+    // Release of Alt + M (either M or Alt released)
+    if (isAltMHeld && (e.code === "KeyM" || e.key.toLowerCase() === "m" || e.key === "Alt" || e.code.startsWith("Alt"))) {
       e.preventDefault();
+      isAltMHeld = false;
+      const elapsed = Date.now() - talkStartTime;
+      // If held for > 350ms, this was push-to-talk: release immediately commits audio!
+      if (elapsed > 350 && isTalking) {
+        stopTalking();
+      }
+      // If quick tap (< 350ms), stay unmuted in hands-free toggle mode!
+      return;
+    }
+
+    // Release of Ctrl + Space
+    if (isCtrlSpaceHeld && (e.code === "Space" || e.key === " " || e.key === "Control" || e.code.startsWith("Control"))) {
+      e.preventDefault();
+      isCtrlSpaceHeld = false;
+      const elapsed = Date.now() - talkStartTime;
+      if (elapsed > 350 && isTalking) {
+        stopTalking();
+      }
+      return;
+    }
+
+    // Release of Tilde (`)
+    if (isTildeHeld && e.code === "Backquote") {
+      e.preventDefault();
+      isTildeHeld = false;
       stopTalking();
+      return;
+    }
+  });
+
+  window.addEventListener("blur", () => {
+    if (isAltMHeld || isCtrlSpaceHeld || isTildeHeld || isPointerHeld) {
+      isAltMHeld = false;
+      isCtrlSpaceHeld = false;
+      isTildeHeld = false;
+      isPointerHeld = false;
+      if (isTalking) stopTalking();
     }
   });
 
@@ -671,6 +903,17 @@
     const isOpen = typeof force === "boolean" ? force : !timelineDrawer.classList.contains("open");
     timelineDrawer.classList.toggle("open", isOpen);
     btnOpenTimeline.classList.toggle("active", isOpen);
+  }
+
+  function toggleConsoleDrawer(force) {
+    if (!consoleDrawer) return;
+    const isOpen = typeof force === "boolean" ? force : !consoleDrawer.classList.contains("open");
+    consoleDrawer.classList.toggle("open", isOpen);
+    if (btnOpenConsole) btnOpenConsole.classList.toggle("active", isOpen);
+    if (isOpen) {
+      if (timelineDrawer && timelineDrawer.classList.contains("open")) toggleTimelineDrawer(false);
+      if (historyDrawer && historyDrawer.classList.contains("open")) toggleHistoryDrawer(false);
+    }
   }
 
   // History Drawer
@@ -715,8 +958,35 @@
   });
   btnCloseTimeline.addEventListener("click", () => toggleTimelineDrawer(false));
 
+  // Command Runner Console Drawer (Top / Right Header Action)
+  if (btnOpenConsole) {
+    btnOpenConsole.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleConsoleDrawer();
+    });
+  }
+  if (btnCloseConsole) {
+    btnCloseConsole.addEventListener("click", () => toggleConsoleDrawer(false));
+  }
+  if (btnCopyConsole) {
+    btnCopyConsole.addEventListener("click", () => {
+      if (consoleOutput) {
+        const cmd = toolCommandText ? toolCommandText.textContent : "";
+        const out = consoleOutput.innerText || consoleOutput.textContent || "";
+        const fullText = (cmd ? `$ ${cmd}\n\n` : "") + out;
+        navigator.clipboard?.writeText(fullText).then(() => {
+          btnCopyConsole.title = "Copied!";
+          setTimeout(() => { btnCopyConsole.title = "Copy Output"; }, 1500);
+        }).catch(() => {});
+      }
+    });
+  }
+
   // Click outside drawer to close
   document.addEventListener("click", (e) => {
+    if (consoleDrawer && consoleDrawer.classList.contains("open") && !consoleDrawer.contains(e.target) && btnOpenConsole && !btnOpenConsole.contains(e.target)) {
+      toggleConsoleDrawer(false);
+    }
     if (timelineDrawer && timelineDrawer.classList.contains("open") && !timelineDrawer.contains(e.target) && !btnOpenTimeline.contains(e.target)) {
       toggleTimelineDrawer(false);
     }
@@ -757,10 +1027,11 @@
 
   async function loadSettingsData() {
     try {
-      const [resModels, resVoices, resStatus] = await Promise.all([
-        fetch("/api/models").then((r) => r.json()),
-        fetch("/api/voices").then((r) => r.json()),
-        fetch("/api/status").then((r) => r.json()),
+      const [resModels, resVoices, resStatus, resDevices] = await Promise.all([
+        fetch("/api/models").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/voices").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/status").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/devices").then((r) => r.json()).catch(() => ({})),
       ]);
 
       // Populate models
@@ -807,6 +1078,38 @@
       document.getElementById("settingRate").value = resStatus.tts?.rate || 185;
       document.getElementById("rateValueDisplay").textContent = `${resStatus.tts?.rate || 185} wpm`;
 
+      // Populate microphone input devices
+      const selectMic = document.getElementById("settingMicDevice");
+      if (selectMic) {
+        selectMic.innerHTML = "";
+        const autoOpt = document.createElement("option");
+        autoOpt.value = "-1";
+        const activeLabel = resDevices.active_name ? ` (Active: ${resDevices.active_name})` : "";
+        autoOpt.textContent = `Auto-Detect Bluetooth / Default${activeLabel}`;
+        selectMic.appendChild(autoOpt);
+
+        (resDevices.devices || []).forEach((dev) => {
+          const opt = document.createElement("option");
+          opt.value = dev.index;
+          const apiTag = dev.api ? ` [${dev.api}]` : "";
+          opt.textContent = `${dev.name}${apiTag} (${dev.channels} in, ${Math.round(dev.samplerate)}Hz)`;
+          if (resDevices.current === dev.index) {
+            opt.selected = true;
+          }
+          selectMic.appendChild(opt);
+        });
+
+        if (resDevices.current === null || resDevices.current === undefined) {
+          autoOpt.selected = true;
+        }
+      }
+
+      // Populate continuous listening dropdown
+      const selectContinuous = document.getElementById("settingContinuousListening");
+      if (selectContinuous) {
+        selectContinuous.value = resStatus.continuous_listening ? "true" : "false";
+      }
+
       document.getElementById("settingConfirmMode").value = resStatus.safety?.confirm_mode || "terminal";
       document.getElementById("settingShell").value = resStatus.safety?.default_shell || "powershell";
     } catch (e) {
@@ -819,6 +1122,9 @@
   });
 
   document.getElementById("btnSaveSettings").addEventListener("click", async () => {
+    const micVal = document.getElementById("settingMicDevice")?.value;
+    const continuousVal = document.getElementById("settingContinuousListening")?.value;
+
     const payload = {
       model: document.getElementById("settingModel").value,
       tts_backend: document.getElementById("settingTtsBackend").value,
@@ -827,6 +1133,8 @@
       tts_speaker_target: document.getElementById("settingSpeakerTarget")?.value || "auto",
       confirm_mode: document.getElementById("settingConfirmMode").value,
       default_shell: document.getElementById("settingShell").value,
+      input_device: (micVal !== undefined && micVal !== null && parseInt(micVal, 10) >= 0) ? parseInt(micVal, 10) : null,
+      continuous_listening: continuousVal === "true",
     };
 
     try {
@@ -848,29 +1156,89 @@
     });
   }
 
+  // Mic Test Button handler
+  const btnTestMic = document.getElementById("btnTestMic");
+  const micTestBarWrap = document.getElementById("micTestBarWrap");
+  const micTestBar = document.getElementById("micTestBar");
+  const micTestLevelText = document.getElementById("micTestLevelText");
+  const micTestStatusText = document.getElementById("micTestStatusText");
+  let isTestingMic = false;
+
+  if (btnTestMic) {
+    btnTestMic.addEventListener("click", async () => {
+      if (isTestingMic) return;
+      isTestingMic = true;
+      btnTestMic.disabled = true;
+      if (micTestBarWrap) micTestBarWrap.style.display = "block";
+      if (micTestStatusText) micTestStatusText.textContent = "Listening to mic (say something now)...";
+      if (micTestBar) micTestBar.style.width = "15%";
+
+      const selectedDev = document.getElementById("settingMicDevice")?.value;
+      const devPayload = (selectedDev !== undefined && selectedDev !== null && parseInt(selectedDev, 10) >= 0)
+        ? { device: parseInt(selectedDev, 10) }
+        : {};
+
+      try {
+        const res = await fetch("/api/test-mic", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(devPayload),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const pct = Math.min(100, Math.max(5, Math.round(data.peak * 120)));
+          if (micTestBar) micTestBar.style.width = `${pct}%`;
+          if (micTestLevelText) micTestLevelText.textContent = `${pct}% peak`;
+          if (micTestStatusText) micTestStatusText.textContent = `Signal detected from: ${data.device_name}`;
+        } else {
+          if (micTestStatusText) micTestStatusText.textContent = `Mic test failed: ${data.error || "Unknown"}`;
+        }
+      } catch (err) {
+        if (micTestStatusText) micTestStatusText.textContent = `Mic test error: ${err.message}`;
+      } finally {
+        setTimeout(() => {
+          isTestingMic = false;
+          btnTestMic.disabled = false;
+        }, 800);
+      }
+    });
+  }
+
   document.getElementById("btnTestVoice").addEventListener("click", async () => {
     const voice = document.getElementById("settingVoice").value;
     const backend = document.getElementById("settingTtsBackend").value;
     const res = await fetch("/api/test-voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voice, backend }),
+      body: JSON.stringify({ voice, backend, client: clientDeviceType }),
     });
     try {
       const data = await res.json();
-      if (data.audio && isMobileDevice) {
+      if (data.audio && clientDeviceType === "phone") {
         playSpokenReply(data.audio, "Voice test preview");
       }
     } catch (e) {}
   });
 
-  // Read response aloud again (plays on phone speaker if on mobile)
+  // Read response aloud again (routes to local laptop hardware or phone speaker)
   document.getElementById("btnReplayResponse").addEventListener("click", () => {
     const text = agentResponseText.textContent;
-    if (lastReplyAudio) {
-      playSpokenReply(lastReplyAudio, text);
-    } else if (text) {
-      playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
+    if (clientDeviceType === "phone") {
+      if (lastReplyAudio) {
+        playSpokenReply(lastReplyAudio, text);
+      } else if (text) {
+        playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
+      }
+    } else {
+      // Laptop: trigger native server-side speaker (OnePlus Bullets / laptop output)
+      fetch("/api/tts/speak-local", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      }).catch(() => {
+        if (lastReplyAudio) playSpokenReply(lastReplyAudio, text);
+        else if (text) playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
+      });
     }
   });
 

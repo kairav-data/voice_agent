@@ -24,8 +24,110 @@ class VoiceOrb {
     this.numParticles = 54;
     this._initParticles();
 
-    // Luminous Color Palettes per State
-    this.stateColors = {
+    // Dual Luminous Color Palettes (Light Jewel-Tone Default & Dark Obsidian Neon)
+    this.lightStateColors = {
+      idle: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#0284C7",
+        coreOuter: "rgba(2, 132, 199, 0.45)",
+        coreDeep: "rgba(12, 74, 110, 0.95)",
+        glow: "rgba(2, 132, 199, 0.18)",
+        ring: "rgba(2, 132, 199, 0.55)",
+        particle: "rgba(2, 132, 199, 0.8)",
+      },
+      listening: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#0284C7",
+        coreOuter: "rgba(14, 165, 233, 0.6)",
+        coreDeep: "rgba(7, 89, 133, 0.95)",
+        glow: "rgba(2, 132, 199, 0.32)",
+        ring: "rgba(2, 132, 199, 0.85)",
+        particle: "rgba(2, 132, 199, 0.9)",
+      },
+      hearing: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#2563EB",
+        coreOuter: "rgba(37, 99, 235, 0.65)",
+        coreDeep: "rgba(30, 58, 138, 0.95)",
+        glow: "rgba(37, 99, 235, 0.35)",
+        ring: "rgba(37, 99, 235, 0.85)",
+        particle: "rgba(59, 130, 246, 0.9)",
+      },
+      processing: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#4F46E5",
+        coreOuter: "rgba(79, 70, 229, 0.6)",
+        coreDeep: "rgba(49, 46, 129, 0.95)",
+        glow: "rgba(79, 70, 229, 0.35)",
+        ring: "rgba(99, 102, 241, 0.85)",
+        particle: "rgba(129, 140, 248, 0.9)",
+      },
+      thinking: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#7C3AED",
+        coreOuter: "rgba(124, 58, 237, 0.65)",
+        coreDeep: "rgba(76, 29, 149, 0.95)",
+        glow: "rgba(124, 58, 237, 0.38)",
+        ring: "rgba(147, 51, 234, 0.85)",
+        particle: "rgba(168, 85, 247, 0.9)",
+      },
+      tool: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#D97706",
+        coreOuter: "rgba(217, 119, 6, 0.65)",
+        coreDeep: "rgba(120, 53, 15, 0.95)",
+        glow: "rgba(217, 119, 6, 0.32)",
+        ring: "rgba(245, 158, 11, 0.85)",
+        particle: "rgba(251, 191, 36, 0.9)",
+      },
+      confirmation: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#EA580C",
+        coreOuter: "rgba(234, 88, 12, 0.65)",
+        coreDeep: "rgba(124, 45, 18, 0.95)",
+        glow: "rgba(234, 88, 12, 0.38)",
+        ring: "rgba(249, 115, 22, 0.85)",
+        particle: "rgba(251, 146, 60, 0.9)",
+      },
+      executing: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#2563EB",
+        coreOuter: "rgba(217, 119, 6, 0.65)",
+        coreDeep: "rgba(30, 58, 138, 0.95)",
+        glow: "rgba(37, 99, 235, 0.35)",
+        ring: "rgba(217, 119, 6, 0.85)",
+        particle: "rgba(59, 130, 246, 0.85)",
+      },
+      speaking: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#0284C7",
+        coreOuter: "rgba(14, 165, 233, 0.65)",
+        coreDeep: "rgba(12, 74, 110, 0.95)",
+        glow: "rgba(2, 132, 199, 0.35)",
+        ring: "rgba(14, 165, 233, 0.85)",
+        particle: "rgba(56, 189, 248, 0.9)",
+      },
+      success: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#059669",
+        coreOuter: "rgba(5, 150, 105, 0.65)",
+        coreDeep: "rgba(6, 78, 59, 0.95)",
+        glow: "rgba(5, 150, 105, 0.35)",
+        ring: "rgba(16, 185, 129, 0.85)",
+        particle: "rgba(52, 211, 153, 0.9)",
+      },
+      error: {
+        coreCenter: "#FFFFFF",
+        coreMid: "#E11D48",
+        coreOuter: "rgba(225, 29, 72, 0.65)",
+        coreDeep: "rgba(136, 19, 55, 0.95)",
+        glow: "rgba(225, 29, 72, 0.38)",
+        ring: "rgba(244, 63, 94, 0.85)",
+        particle: "rgba(251, 113, 133, 0.9)",
+      },
+    };
+
+    this.darkStateColors = {
       idle: {
         coreCenter: "#FFFFFF",
         coreMid: "#00F0FF",
@@ -163,7 +265,7 @@ class VoiceOrb {
   }
 
   setState(state) {
-    if (this.stateColors[state]) {
+    if (this.lightStateColors[state] || this.darkStateColors[state]) {
       this.state = state;
     }
   }
@@ -189,7 +291,9 @@ class VoiceOrb {
     if (!ctx) return;
 
     ctx.clearRect(0, 0, this.width, this.height);
-    const colors = this.stateColors[this.state] || this.stateColors.idle;
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const palette = isDark ? this.darkStateColors : this.lightStateColors;
+    const colors = palette[this.state] || palette.idle;
 
     // Subtle natural breathing oscillation (period: ~3.8 seconds)
     const breath = Math.sin(this.time * 1.65) * 0.035;
