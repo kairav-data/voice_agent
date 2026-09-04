@@ -103,6 +103,7 @@
   const screenMirrorOverlay = document.getElementById("screenMirrorOverlay");
   const screenStreamVideo = document.getElementById("screenStreamVideo");
   const screenStreamImg = document.getElementById("screenStreamImg");
+  const screenLiveBadgeText = document.getElementById("screenLiveBadgeText");
   const btnCloseScreenMirror = document.getElementById("btnCloseScreenMirror");
   const btnScreenFullscreen = document.getElementById("btnScreenFullscreen");
   const btnToggleTouchClicks = document.getElementById("btnToggleTouchClicks");
@@ -116,6 +117,26 @@
   const mobileQrImg = document.getElementById("mobileQrImg");
   const mobileUrlDisplay = document.getElementById("mobileUrlDisplay");
   const btnCopyMobileUrl = document.getElementById("btnCopyMobileUrl");
+
+  // Mobile Connect Mode Tabs & Remote Tunnel Controls
+  const btnTabLocalWifi = document.getElementById("btnTabLocalWifi");
+  const btnTabRemoteTunnel = document.getElementById("btnTabRemoteTunnel");
+  const paneLocalWifi = document.getElementById("paneLocalWifi");
+  const paneRemoteTunnel = document.getElementById("paneRemoteTunnel");
+  const remoteTunnelStatusPill = document.getElementById("remoteTunnelStatusPill");
+  const remoteTunnelSubtext = document.getElementById("remoteTunnelSubtext");
+  const btnToggleTunnel = document.getElementById("btnToggleTunnel");
+  const remoteActiveContent = document.getElementById("remoteActiveContent");
+  const remoteInactiveContent = document.getElementById("remoteInactiveContent");
+  const remoteQrImg = document.getElementById("remoteQrImg");
+  const remoteUrlDisplay = document.getElementById("remoteUrlDisplay");
+  const btnCopyRemoteUrl = document.getElementById("btnCopyRemoteUrl");
+
+  // Authentication Modal
+  const authModal = document.getElementById("authModal");
+  const inputAuthToken = document.getElementById("inputAuthToken");
+  const btnSubmitAuthToken = document.getElementById("btnSubmitAuthToken");
+  const authErrorMsg = document.getElementById("authErrorMsg");
 
   // Visualizer Bars
   const vizStrip = document.getElementById("visualizerStrip");
@@ -139,6 +160,41 @@
       : (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
   const clientDeviceType = isMobileDevice ? "phone" : "laptop";
+
+  // Auth Token Management (pairing key for remote cellular access)
+  let rawUrlToken = urlParams.get("token") || urlParams.get("auth") || "";
+  let currentAuthToken = rawUrlToken || "";
+  try {
+    if (!currentAuthToken) {
+      currentAuthToken = localStorage.getItem("voice_agent_token") || "";
+    } else {
+      localStorage.setItem("voice_agent_token", currentAuthToken);
+    }
+  } catch (e) {}
+
+  // Strip token from browser URL address bar to keep it clean and confidential
+  if (rawUrlToken) {
+    urlParams.delete("token");
+    urlParams.delete("auth");
+    const cleanQuery = urlParams.toString() ? '?' + urlParams.toString() : '';
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname + cleanQuery + window.location.hash);
+    } catch (e) {}
+  }
+
+  // Authenticated fetch wrapper for REST API calls
+  function authFetch(url, options = {}) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (currentAuthToken) {
+      if (options.headers instanceof Headers) {
+        options.headers.set("x-auth-token", currentAuthToken);
+      } else {
+        options.headers["x-auth-token"] = currentAuthToken;
+      }
+    }
+    return fetch(url, options);
+  }
 
   // Audio Cues via Web Audio API
   let audioCtx = null;
@@ -207,6 +263,9 @@
     primeAudioPlayback();
 
     if (audioSrc) {
+      if (currentAuthToken && audioSrc.startsWith("/") && !audioSrc.includes("token=")) {
+        audioSrc += (audioSrc.includes("?") ? "&" : "?") + `token=${encodeURIComponent(currentAuthToken)}`;
+      }
       lastReplyAudio = audioSrc;
       lastReplyText = fallbackText || "";
       try {
@@ -327,20 +386,66 @@
   }
 
   // ========================================================================
-  // WebSocket Client
+  // WebSocket Client & Auth Protocol
   // ========================================================================
   let socket = null;
   let reconnectTimer = null;
+  let isAuthBlocked = false;
+
+  function showAuthModal(hasError = false) {
+    if (!authModal) return;
+    authModal.style.display = "flex";
+    authModal.classList.add("active");
+    if (authErrorMsg) authErrorMsg.style.display = hasError ? "block" : "none";
+    if (inputAuthToken) {
+      inputAuthToken.value = currentAuthToken || "";
+      setTimeout(() => inputAuthToken.focus(), 150);
+    }
+  }
+
+  function hideAuthModal() {
+    if (!authModal) return;
+    authModal.style.display = "none";
+    authModal.classList.remove("active");
+    if (authErrorMsg) authErrorMsg.style.display = "none";
+  }
+
+  if (btnSubmitAuthToken && inputAuthToken) {
+    const handleAuthSubmit = () => {
+      const val = inputAuthToken.value.trim();
+      if (!val) return;
+      currentAuthToken = val;
+      try {
+        localStorage.setItem("voice_agent_token", val);
+      } catch (e) {}
+      isAuthBlocked = false;
+      if (authErrorMsg) authErrorMsg.style.display = "none";
+      if (socket) {
+        try { socket.close(); } catch (e) {}
+      }
+      connectWebSocket();
+    };
+    btnSubmitAuthToken.addEventListener("click", handleAuthSubmit);
+    inputAuthToken.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleAuthSubmit();
+    });
+  }
 
   function connectWebSocket() {
+    if (isAuthBlocked) return;
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${location.host}/ws`;
+    let wsUrl = `${protocol}//${location.host}/ws`;
+    if (currentAuthToken) {
+      wsUrl += `?token=${encodeURIComponent(currentAuthToken)}`;
+    }
 
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
       console.log(`[ws] Connected to ECOWHISPER Command Center (${clientDeviceType})`);
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      isAuthBlocked = false;
+      hideAuthModal();
       sendWS("identify", { client_type: clientDeviceType });
     };
 
@@ -353,7 +458,13 @@
       }
     };
 
-    socket.onclose = () => {
+    socket.onclose = (evt) => {
+      if (evt && evt.code === 4401) {
+        console.warn("[ws] Connection rejected (4401 Unauthorized - pairing key required).");
+        isAuthBlocked = true;
+        showAuthModal(true);
+        return;
+      }
       console.warn("[ws] Connection lost. Retrying in 2s...");
       reconnectTimer = setTimeout(connectWebSocket, 2000);
     };
@@ -366,7 +477,9 @@
   function sendWS(type, data) {
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type, client: clientDeviceType, ...(data || {}) }));
+      return true;
     }
+    return false;
   }
 
   function handleServerMessage(msg) {
@@ -377,9 +490,14 @@
       renderHistory(msg.history);
       renderTimeline(msg.timeline);
       if (msg.state) updateState(msg.state);
-      if (msg.network && msg.network.url) {
-        updateMobileConnectInfo(msg.network.url);
+      if (msg.network) {
+        if (msg.network.url) updateMobileConnectInfo(msg.network.url);
+        if (msg.network.auth_token) currentAuthToken = msg.network.auth_token;
+        if (msg.network.tunnel) updateTunnelUI(msg.network.tunnel);
       }
+
+    } else if (type === "tunnel_status") {
+      if (msg.tunnel) updateTunnelUI(msg.tunnel);
 
     } else if (type === "state_changed") {
       updateState(msg.state, msg);
@@ -397,7 +515,20 @@
 
     } else if (type === "transcription_result") {
       userUtterance.textContent = `"${msg.text}"`;
-      userUtterance.classList.remove("is-placeholder");
+    } else if (type === "screen_frame") {
+      if (screenMirrorOpen && screenStreamImg) {
+        lastWsFrameTime = performance.now();
+        screenStreamImg.src = "data:image/jpeg;base64," + msg.data;
+        if (screenStreamImg.style.display !== "block") {
+          screenStreamImg.style.display = "block";
+        }
+        if (screenStreamVideo) {
+          screenStreamVideo.style.display = "none";
+        }
+      }
+
+    } else if (type === "web_app_opened") {
+      showWebAppOpenedToast(msg.app, msg.url, msg.message);
 
     } else if (type === "agent_reply") {
       const targetDevice = msg.target_device || (msg.play_on_client ? "phone" : "laptop");
@@ -411,6 +542,25 @@
       agentResponseText.textContent = msg.reply;
       agentResponseBox.style.display = "inline-flex";
       if (msg.item) addHistoryItem(msg.item);
+
+      // If YouTube or a web app was opened in this turn, ensure phone shows action button
+      if (msg.item && msg.item.tools && msg.item.tools.length > 0) {
+        for (const t of msg.item.tools) {
+          const tName = t.name || (t.function && t.function.name) || "";
+          if (tName === "play_youtube_video" || tName === "open_web_app") {
+            let resObj = t.result;
+            if (typeof resObj === "string") {
+              try { resObj = JSON.parse(resObj); } catch (e) {}
+            }
+            if (resObj && (resObj.url || resObj.video_id)) {
+              const url = resObj.url || `https://www.youtube.com/watch?v=${resObj.video_id}`;
+              const title = resObj.query || resObj.app || "YouTube";
+              showWebAppOpenedToast(title, url);
+              break;
+            }
+          }
+        }
+      }
 
       lastReplyText = msg.reply || "";
       lastReplyAudio = msg.audio || msg.audio_url || null;
@@ -1023,10 +1173,10 @@
   async function loadSettingsData() {
     try {
       const [resModels, resVoices, resStatus, resDevices] = await Promise.all([
-        fetch("/api/models").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/voices").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/status").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/devices").then((r) => r.json()).catch(() => ({})),
+        authFetch("/api/models").then((r) => r.json()).catch(() => ({})),
+        authFetch("/api/voices").then((r) => r.json()).catch(() => ({})),
+        authFetch("/api/status").then((r) => r.json()).catch(() => ({})),
+        authFetch("/api/devices").then((r) => r.json()).catch(() => ({})),
       ]);
 
       // Populate models
@@ -1133,7 +1283,7 @@
     };
 
     try {
-      await fetch("/api/settings", {
+      await authFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1174,7 +1324,7 @@
         : {};
 
       try {
-        const res = await fetch("/api/test-mic", {
+        const res = await authFetch("/api/test-mic", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(devPayload),
@@ -1202,7 +1352,7 @@
   document.getElementById("btnTestVoice").addEventListener("click", async () => {
     const voice = document.getElementById("settingVoice").value;
     const backend = document.getElementById("settingTtsBackend").value;
-    const res = await fetch("/api/test-voice", {
+    const res = await authFetch("/api/test-voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ voice, backend, client: clientDeviceType }),
@@ -1226,7 +1376,7 @@
       }
     } else {
       // Laptop: trigger native server-side speaker (OnePlus Bullets / laptop output)
-      fetch("/api/tts/speak-local", {
+      authFetch("/api/tts/speak-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -1396,14 +1546,92 @@
   }
 
   let webRtcWatchdog = null;
+  let httpFrameLoopActive = false;
+  let currentBlobUrl = null;
+  let lastWsFrameTime = 0;
+
+  async function startHttpFrameLoop() {
+    if (httpFrameLoopActive) return;
+    httpFrameLoopActive = true;
+
+    while (screenMirrorOpen && httpFrameLoopActive) {
+      // If fresh WebSocket frames are already arriving, yield to WebSocket
+      if (performance.now() - lastWsFrameTime < 1200) {
+        await new Promise((r) => setTimeout(r, 350));
+        continue;
+      }
+
+      try {
+        const tokenParam = currentAuthToken ? `&token=${encodeURIComponent(currentAuthToken)}` : "";
+        const res = await authFetch(`/api/screen/frame?quality=55&scale=0.65${tokenParam}&t=${Date.now()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (!screenMirrorOpen || !httpFrameLoopActive) break;
+
+        const newUrl = URL.createObjectURL(blob);
+        if (screenStreamImg) {
+          screenStreamImg.src = newUrl;
+          if (screenStreamImg.style.display !== "block") {
+            screenStreamImg.style.display = "block";
+          }
+          if (screenStreamVideo) {
+            screenStreamVideo.style.display = "none";
+          }
+        }
+        if (currentBlobUrl) {
+          URL.revokeObjectURL(currentBlobUrl);
+        }
+        currentBlobUrl = newUrl;
+      } catch (err) {
+        console.warn("[HTTP Screen Frame Error]", err);
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    httpFrameLoopActive = false;
+    if (currentBlobUrl) {
+      URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = null;
+    }
+  }
+
+  function stopHttpFrameLoop() {
+    httpFrameLoopActive = false;
+    if (currentBlobUrl) {
+      URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = null;
+    }
+  }
 
   function activateStreamFallback() {
     if (webRtcWatchdog) clearTimeout(webRtcWatchdog);
-    if (screenStreamVideo) screenStreamVideo.style.display = "none";
+    if (rtcPeerConnection) {
+      try {
+        rtcPeerConnection.close();
+      } catch (e) {}
+      rtcPeerConnection = null;
+    }
+    if (screenStreamVideo) {
+      screenStreamVideo.style.display = "none";
+      if (screenStreamVideo.srcObject) {
+        try {
+          screenStreamVideo.srcObject.getTracks().forEach((t) => t.stop());
+        } catch (e) {}
+        screenStreamVideo.srcObject = null;
+      }
+    }
     if (screenStreamImg) {
       screenStreamImg.style.display = "block";
-      screenStreamImg.src = "/api/screen/stream?fps=30&quality=65&t=" + Date.now();
     }
+    if (screenLiveBadgeText) {
+      screenLiveBadgeText.textContent = "LIVE HD (Remote)";
+    }
+
+    // 1. Request real-time WebSocket screen frames (instant, works on iOS/Android over tunnel)
+    sendWS("start_screen_stream", { fps: 15, quality: 55, scale: 0.65 });
+
+    // 2. Also start HTTP frame polling as automatic fail-safe
+    startHttpFrameLoop();
   }
 
   async function startWebRTCScreen() {
@@ -1424,7 +1652,23 @@
       // Ensure Mic is MUTED by default when starting
       updateScreenMicState(false);
 
-      // Set fallback timer if WebRTC stream doesn't arrive within 2.5s
+      // Detect remote tunnel (Cloudflare tunnel, ngrok, localtunnel, etc.)
+      // or remote public WAN where WebRTC UDP cannot connect without TURN
+      const host = window.location.hostname.toLowerCase();
+      const isTunnel = host.includes("trycloudflare.com") || host.includes("loca.lt") || host.includes("ngrok") || host.includes("pagekite");
+      const isPublicWan = host !== "localhost" && host !== "127.0.0.1" && !host.startsWith("192.168.") && !host.startsWith("10.") && !host.startsWith("172.");
+
+      if (isTunnel || isPublicWan) {
+        console.log("[Screen Mirror] Remote tunnel/cellular detected -> Activating high-speed MJPEG screen stream directly");
+        activateStreamFallback();
+        return;
+      }
+
+      if (screenLiveBadgeText) {
+        screenLiveBadgeText.textContent = "60 FPS (LAN)";
+      }
+
+      // Local network: attempt ultra-low-latency 60 FPS WebRTC first
       webRtcWatchdog = setTimeout(() => {
         if (screenStreamVideo && (!screenStreamVideo.srcObject || screenStreamVideo.paused)) {
           console.warn("[WebRTC watchdog timeout, activating stream fallback]");
@@ -1451,6 +1695,9 @@
             screenStreamImg.style.display = "none";
             screenStreamImg.src = "";
           }
+          if (screenLiveBadgeText) {
+            screenLiveBadgeText.textContent = "60 FPS WebRTC";
+          }
           screenStreamVideo.play().catch(() => {});
         }
       };
@@ -1473,7 +1720,7 @@
       const offer = await rtcPeerConnection.createOffer();
       await rtcPeerConnection.setLocalDescription(offer);
 
-      const res = await fetch("/api/webrtc/offer", {
+      const res = await authFetch("/api/webrtc/offer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1494,6 +1741,8 @@
 
   function stopWebRTCScreen() {
     if (webRtcWatchdog) clearTimeout(webRtcWatchdog);
+    sendWS("stop_screen_stream");
+    stopHttpFrameLoop();
     updateScreenMicState(false);
     if (rtcMicStream) {
       rtcMicStream.getTracks().forEach((t) => t.stop());
@@ -1505,10 +1754,17 @@
     }
     rtcDataChannel = null;
     if (screenStreamVideo) {
+      if (screenStreamVideo.srcObject) {
+        try {
+          screenStreamVideo.srcObject.getTracks().forEach((t) => t.stop());
+        } catch (e) {}
+      }
       screenStreamVideo.srcObject = null;
+      screenStreamVideo.style.display = "none";
     }
     if (screenStreamImg) {
       screenStreamImg.src = "";
+      screenStreamImg.style.display = "none";
     }
   }
 
@@ -1648,17 +1904,19 @@
       } catch (e) {}
     }
 
-    // 2. Also send via WebSocket
+    // 2. Otherwise send via WebSocket
     if (!sent) {
-      sendWS("screen_click", { x: normX, y: normY, button });
+      sent = sendWS("screen_click", { x: normX, y: normY, button });
     }
 
-    // 3. HTTP API fallback for absolute guaranteed execution
-    fetch("/api/screen/click", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ x: normX, y: normY, button }),
-    }).catch(() => {});
+    // 3. HTTP API fallback only if WebRTC and WebSocket are both unavailable
+    if (!sent) {
+      authFetch("/api/screen/click", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x: normX, y: normY, button }),
+      }).catch(() => {});
+    }
   }
 
   if (screenViewportWrap) {
@@ -1761,6 +2019,42 @@
   let isMobileRecording = false;
   let micAudioStream = null;
   let micMeterInterval = null;
+  let sentViaSpeechRec = false;
+
+  const agentActionPill = document.getElementById("agentActionPill");
+
+  // Floating Toast notification when a web app or YouTube is opened
+  function showWebAppOpenedToast(appName, url, msg) {
+    let toast = document.getElementById("webAppOpenedToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "webAppOpenedToast";
+      toast.className = "web-app-toast";
+      document.body.appendChild(toast);
+    }
+    const isYouTube = (appName && appName.toLowerCase().includes("youtube")) || (url && url.includes("youtube.com"));
+    const icon = isYouTube ? "▶️" : "🚀";
+    const cleanApp = appName ? appName : (isYouTube ? "YouTube Video" : "Web App");
+    const btnLabel = isYouTube ? "Watch on Phone ↗" : "Open on Phone ↗";
+    toast.innerHTML = `
+      <span class="web-app-toast-text">${icon} ${escapeHtml(cleanApp)} (Playing on Laptop)</span>
+      ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="web-app-toast-btn">${btnLabel}</a>` : ""}
+    `;
+    toast.classList.add("show");
+    setTimeout(() => {
+      if (toast) toast.classList.remove("show");
+    }, 7000);
+
+    // Also display prominent action button below response box on phone screen
+    if (agentActionPill && url) {
+      agentActionPill.innerHTML = `
+        <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="agent-action-link">
+          ${icon} ${isYouTube ? "Watch" : "Open"} ${escapeHtml(cleanApp)} on this Phone ↗
+        </a>
+      `;
+      agentActionPill.style.display = "inline-flex";
+    }
+  }
 
   // Web Speech API for zero-latency client dictation if supported
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1777,9 +2071,11 @@
           if (event.results[i].isFinal) {
             const finalTxt = event.results[i][0].transcript.trim();
             if (finalTxt) {
+              sentViaSpeechRec = true;
               userUtterance.textContent = `"${finalTxt}"`;
               userUtterance.classList.remove("is-placeholder");
               sendWS("send_text", { text: finalTxt });
+              stopTalking();
             }
           } else {
             interim += event.results[i][0].transcript;
@@ -1828,9 +2124,10 @@
       return;
     }
 
+    sentViaSpeechRec = false;
     isMobileRecording = true;
     playSoundCue("listen");
-    userUtterance.textContent = '"Listening to your phone mic... Speak now!"';
+    userUtterance.textContent = '"Listening... Speak now!"';
     userUtterance.classList.remove("is-placeholder");
 
     if (btnScreenDictate) {
@@ -1853,7 +2150,7 @@
         },
       });
 
-      // Hook up real-time audio meter on the phone
+      // Hook up real-time audio meter & Voice Activity Detection on mobile
       try {
         const actx = getAudioContext();
         if (actx.state === "suspended") actx.resume();
@@ -1863,9 +2160,14 @@
         source.connect(analyser);
 
         const dataArr = new Uint8Array(analyser.frequencyBinCount);
+        let hasSpoken = false;
+        let silentFrames = 0;
+        let totalFrames = 0;
+
         if (micMeterInterval) clearInterval(micMeterInterval);
         micMeterInterval = setInterval(() => {
           if (!isMobileRecording) return;
+          totalFrames++;
           analyser.getByteFrequencyData(dataArr);
           let sum = 0;
           for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
@@ -1873,6 +2175,22 @@
           const level = Math.min(1.0, avg / 80.0);
           if (orb) orb.setAudioLevel(level);
           updateVisualizer(level);
+
+          // Intelligent mobile silence detection:
+          // Once the user speaks (level > 0.12), if they stop speaking for ~1.4s, automatically send
+          if (level > 0.12) {
+            hasSpoken = true;
+            silentFrames = 0;
+          } else if (hasSpoken) {
+            silentFrames++;
+            if (silentFrames >= 35) { // 35 * 40ms = 1.4s of silence
+              stopTalking();
+            }
+          }
+          // Max safeguard: 9 seconds
+          if (totalFrames >= 225) {
+            stopTalking();
+          }
         }, 40);
       } catch (e) {
         console.warn("[audio meter init error]", e);
@@ -1905,7 +2223,8 @@
           micAudioStream.getTracks().forEach((t) => t.stop());
           micAudioStream = null;
         }
-        if (audioChunks.length > 0) {
+        // Only send raw audio if Web Speech API didn't already transcribe and dispatch it
+        if (audioChunks.length > 0 && !sentViaSpeechRec) {
           const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
           const reader = new FileReader();
           reader.onloadend = () => {
@@ -1915,7 +2234,8 @@
           reader.readAsDataURL(blob);
         }
       };
-      mediaRecorder.start();
+      // Request chunks every 250ms for reliable recording across mobile browsers
+      mediaRecorder.start(250);
     } catch (err) {
       console.error("[phone mic getUserMedia error]", err);
       isMobileRecording = false;
@@ -1955,6 +2275,9 @@
     }
 
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      try {
+        mediaRecorder.requestData();
+      } catch (e) {}
       mediaRecorder.stop();
     }
   }
@@ -1985,36 +2308,219 @@
   }
 
   // ========================================================================
-  // Mobile Connect & QR Code Modal
+  // Mobile Connect & QR Code Modal (Local Wi-Fi & Remote Anywhere)
   // ========================================================================
   function updateMobileConnectInfo(url) {
     if (!url) return;
-    mobileUrlDisplay.textContent = url;
-    mobileQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+    if (mobileUrlDisplay) mobileUrlDisplay.textContent = url;
+    if (mobileQrImg) {
+      mobileQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+    }
   }
 
-  btnOpenMobileConnect.addEventListener("click", async () => {
-    mobileConnectModal.classList.add("active");
+  function updateTunnelUI(tunnel) {
+    if (!tunnel || !remoteTunnelStatusPill) return;
+
+    const statusLabel = document.getElementById("remoteTunnelStatusLabel") || remoteTunnelStatusPill;
+
+    if (tunnel.active && tunnel.public_url) {
+      remoteTunnelStatusPill.className = "tunnel-status-pill active";
+      statusLabel.textContent = "Tunnel: Active (Online)";
+      if (remoteTunnelSubtext) remoteTunnelSubtext.textContent = "Cloudflare secure tunnel running";
+      if (btnToggleTunnel) {
+        btnToggleTunnel.textContent = "Stop Remote Tunnel";
+        btnToggleTunnel.className = "btn-secondary";
+        btnToggleTunnel.disabled = false;
+      }
+      if (remoteActiveContent) remoteActiveContent.style.display = "flex";
+      if (remoteInactiveContent) remoteInactiveContent.style.display = "none";
+
+      const tokenPart = currentAuthToken ? `?token=${encodeURIComponent(currentAuthToken)}` : "";
+      const remoteAuthUrl = tunnel.authenticated_url || `${tunnel.public_url}${tokenPart}`;
+      if (remoteUrlDisplay) remoteUrlDisplay.textContent = remoteAuthUrl;
+      if (remoteQrImg) {
+        remoteQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(remoteAuthUrl)}`;
+      }
+    } else if (tunnel.status === "starting" || tunnel.starting) {
+      remoteTunnelStatusPill.className = "tunnel-status-pill starting";
+      statusLabel.textContent = "Tunnel: Connecting...";
+      if (remoteTunnelSubtext) remoteTunnelSubtext.textContent = "Establishing Cloudflare edge connection...";
+      if (btnToggleTunnel) {
+        btnToggleTunnel.textContent = "Starting...";
+        btnToggleTunnel.className = "btn-secondary";
+        btnToggleTunnel.disabled = true;
+      }
+      if (remoteActiveContent) remoteActiveContent.style.display = "none";
+      if (remoteInactiveContent) remoteInactiveContent.style.display = "flex";
+    } else {
+      remoteTunnelStatusPill.className = "tunnel-status-pill idle";
+      statusLabel.textContent = "Tunnel: Inactive";
+      if (remoteTunnelSubtext) {
+        remoteTunnelSubtext.textContent = tunnel.error ? `Error: ${tunnel.error}` : "Ready to connect over cellular data";
+      }
+      if (btnToggleTunnel) {
+        btnToggleTunnel.textContent = "Start Remote Tunnel";
+        btnToggleTunnel.className = "btn-primary";
+        btnToggleTunnel.disabled = false;
+      }
+      if (remoteActiveContent) remoteActiveContent.style.display = "none";
+      if (remoteInactiveContent) remoteInactiveContent.style.display = "flex";
+    }
+  }
+
+  // Switch between Local Wi-Fi and Remote Anywhere tabs
+  function switchMobileTab(mode) {
+    if (mode === "remote") {
+      if (btnTabLocalWifi) {
+        btnTabLocalWifi.classList.remove("active");
+        btnTabLocalWifi.setAttribute("aria-selected", "false");
+      }
+      if (btnTabRemoteTunnel) {
+        btnTabRemoteTunnel.classList.add("active");
+        btnTabRemoteTunnel.setAttribute("aria-selected", "true");
+      }
+      if (paneLocalWifi) {
+        paneLocalWifi.classList.remove("active");
+        paneLocalWifi.style.display = "none";
+      }
+      if (paneRemoteTunnel) {
+        paneRemoteTunnel.classList.add("active");
+        paneRemoteTunnel.style.display = "flex";
+      }
+      fetchTunnelStatus();
+    } else {
+      if (btnTabRemoteTunnel) {
+        btnTabRemoteTunnel.classList.remove("active");
+        btnTabRemoteTunnel.setAttribute("aria-selected", "false");
+      }
+      if (btnTabLocalWifi) {
+        btnTabLocalWifi.classList.add("active");
+        btnTabLocalWifi.setAttribute("aria-selected", "true");
+      }
+      if (paneRemoteTunnel) {
+        paneRemoteTunnel.classList.remove("active");
+        paneRemoteTunnel.style.display = "none";
+      }
+      if (paneLocalWifi) {
+        paneLocalWifi.classList.add("active");
+        paneLocalWifi.style.display = "flex";
+      }
+    }
+  }
+
+  if (btnTabLocalWifi) {
+    btnTabLocalWifi.addEventListener("click", () => switchMobileTab("wifi"));
+  }
+  if (btnTabRemoteTunnel) {
+    btnTabRemoteTunnel.addEventListener("click", () => switchMobileTab("remote"));
+  }
+
+  let tunnelPollInterval = null;
+
+  async function fetchTunnelStatus() {
     try {
-      const res = await fetch("/api/network-info").then((r) => r.json());
-      if (res && res.url) updateMobileConnectInfo(res.url);
+      const res = await authFetch("/api/tunnel/status").then((r) => r.json());
+      if (res) updateTunnelUI(res);
+      return res;
     } catch (e) {
-      console.warn("[network-info error]", e);
+      console.warn("[tunnel status error]", e);
+      return null;
     }
-  });
+  }
 
-  btnCloseMobileConnect.addEventListener("click", () => {
-    mobileConnectModal.classList.remove("active");
-  });
+  if (btnToggleTunnel) {
+    btnToggleTunnel.addEventListener("click", async () => {
+      const isCurrentlyActive = remoteTunnelStatusPill && remoteTunnelStatusPill.classList.contains("active");
+      const shouldEnable = !isCurrentlyActive;
 
-  btnCopyMobileUrl.addEventListener("click", () => {
-    const url = mobileUrlDisplay.textContent;
-    if (url) {
-      navigator.clipboard.writeText(url);
-      btnCopyMobileUrl.textContent = "Copied!";
-      setTimeout(() => (btnCopyMobileUrl.textContent = "Copy"), 2000);
-    }
-  });
+      updateTunnelUI({ status: shouldEnable ? "starting" : "stopped" });
+
+      try {
+        const res = await authFetch("/api/tunnel/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enable: shouldEnable }),
+        }).then((r) => r.json());
+
+        if (res && res.tunnel) {
+          updateTunnelUI(res.tunnel);
+        }
+
+        if (shouldEnable) {
+          if (tunnelPollInterval) clearInterval(tunnelPollInterval);
+          let pollAttempts = 0;
+          tunnelPollInterval = setInterval(async () => {
+            pollAttempts++;
+            const statusRes = await fetchTunnelStatus();
+            const isTerminal = statusRes && (statusRes.active || statusRes.status === "error" || statusRes.status === "stopped");
+            if (isTerminal || pollAttempts >= 30) {
+              clearInterval(tunnelPollInterval);
+              tunnelPollInterval = null;
+            }
+          }, 1500);
+        }
+      } catch (err) {
+        console.error("[tunnel toggle error]", err);
+        fetchTunnelStatus();
+      }
+    });
+  }
+
+  if (btnOpenMobileConnect) {
+    btnOpenMobileConnect.addEventListener("click", async () => {
+      mobileConnectModal.classList.add("active");
+      try {
+        const res = await authFetch("/api/network-info").then((r) => r.json());
+        if (res) {
+          if (res.local_url || res.url) updateMobileConnectInfo(res.local_url || res.url);
+          if (res.auth_token) currentAuthToken = res.auth_token;
+          if (res.tunnel) updateTunnelUI(res.tunnel);
+        }
+      } catch (e) {
+        console.warn("[network-info error]", e);
+      }
+    });
+  }
+
+  if (btnCloseMobileConnect) {
+    btnCloseMobileConnect.addEventListener("click", () => {
+      mobileConnectModal.classList.remove("active");
+    });
+  }
+
+  if (mobileConnectModal) {
+    mobileConnectModal.addEventListener("click", (e) => {
+      if (e.target === mobileConnectModal) {
+        mobileConnectModal.classList.remove("active");
+      }
+    });
+  }
+
+  if (btnCopyMobileUrl) {
+    btnCopyMobileUrl.addEventListener("click", () => {
+      const url = mobileUrlDisplay ? mobileUrlDisplay.textContent : "";
+      if (url) {
+        navigator.clipboard.writeText(url);
+        const span = btnCopyMobileUrl.querySelector("span") || btnCopyMobileUrl;
+        const origText = span.textContent;
+        span.textContent = "Copied!";
+        setTimeout(() => (span.textContent = origText), 2000);
+      }
+    });
+  }
+
+  if (btnCopyRemoteUrl) {
+    btnCopyRemoteUrl.addEventListener("click", () => {
+      const url = remoteUrlDisplay ? remoteUrlDisplay.textContent : "";
+      if (url) {
+        navigator.clipboard.writeText(url);
+        const span = btnCopyRemoteUrl.querySelector("span") || btnCopyRemoteUrl;
+        const origText = span.textContent;
+        span.textContent = "Copied!";
+        setTimeout(() => (span.textContent = origText), 2000);
+      }
+    });
+  }
 
   // ========================================================================
   // Premium Tooltip & Micro-Popover Engine

@@ -29,7 +29,7 @@ from PIL import Image
 import requests
 import soundfile as sf
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -39,6 +39,7 @@ from config import Config
 from llm import OllamaAgent
 from stt import Transcriber
 from tools import ToolBox, assess_command_risk, classify
+from tunnel import tunnel_manager
 
 # --------------------------------------------------------------------------- #
 # Windows asyncio ProactorBasePipeTransport 10054 ConnectionReset fix & DPI
@@ -152,6 +153,61 @@ def generate_self_signed_cert(cert_path: str, key_path: str, ip: str = "127.0.0.
         f.write(cert.public_bytes(serialization.Encoding.PEM))
 
 
+# --------------------------------------------------------------------------- #
+# 64-Bit Windows GDI & User32 Prototypes (prevents handle truncation & error 6)
+# --------------------------------------------------------------------------- #
+_user32 = ctypes.windll.user32
+_gdi32 = ctypes.windll.gdi32
+
+_user32.GetDC.restype = ctypes.c_void_p
+_user32.GetDC.argtypes = [ctypes.c_void_p]
+
+_user32.ReleaseDC.restype = ctypes.c_int
+_user32.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+_gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+_gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+
+_gdi32.DeleteDC.restype = ctypes.c_int
+_gdi32.DeleteDC.argtypes = [ctypes.c_void_p]
+
+_gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+_gdi32.CreateCompatibleBitmap.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+
+_gdi32.DeleteObject.restype = ctypes.c_int
+_gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+
+_gdi32.SelectObject.restype = ctypes.c_void_p
+_gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+_gdi32.BitBlt.restype = ctypes.c_int
+_gdi32.BitBlt.argtypes = [
+    ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_uint
+]
+
+_gdi32.GetDIBits.restype = ctypes.c_int
+_gdi32.GetDIBits.argtypes = [
+    ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint,
+    ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint
+]
+
+_user32.OpenWindowStationW.restype = ctypes.c_void_p
+_user32.OpenDesktopW.restype = ctypes.c_void_p
+
+
+def _attach_interactive_desktop() -> None:
+    try:
+        hWinsta = _user32.OpenWindowStationW("winsta0", False, 0x10000000)
+        if hWinsta:
+            _user32.SetProcessWindowStation(hWinsta)
+        hDesk = _user32.OpenDesktopW("default", 0, False, 0x10000000)
+        if hDesk:
+            _user32.SetThreadDesktop(hDesk)
+    except Exception:
+        pass
+
+
 class FastScreenCapture:
     """Ultra-fast zero-copy Windows GDI screen capture delivering 60-200 FPS."""
 
@@ -164,29 +220,17 @@ class FastScreenCapture:
             except Exception:
                 pass
 
-        self.user32 = ctypes.windll.user32
-        self.gdi32 = ctypes.windll.gdi32
+        _attach_interactive_desktop()
 
-        # Attach to interactive Windows desktop station
-        try:
-            hWinsta = self.user32.OpenWindowStationW("winsta0", False, 0x10000000)
-            if hWinsta:
-                self.user32.SetProcessWindowStation(hWinsta)
-            hDesk = self.user32.OpenDesktopW("default", 0, False, 0x10000000)
-            if hDesk:
-                self.user32.SetThreadDesktop(hDesk)
-        except Exception:
-            pass
-
-        self.w = self.user32.GetSystemMetrics(0)
-        self.h = self.user32.GetSystemMetrics(1)
+        self.w = _user32.GetSystemMetrics(0)
+        self.h = _user32.GetSystemMetrics(1)
         if not self.w or not self.h:
             self.w, self.h = 1920, 1080
 
-        self.hdc_screen = self.user32.GetDC(0)
-        self.hdc_mem = self.gdi32.CreateCompatibleDC(self.hdc_screen)
-        self.hbm = self.gdi32.CreateCompatibleBitmap(self.hdc_screen, self.w, self.h)
-        self.gdi32.SelectObject(self.hdc_mem, self.hbm)
+        self.hdc_screen = _user32.GetDC(None)
+        self.hdc_mem = _gdi32.CreateCompatibleDC(self.hdc_screen)
+        self.hbm = _gdi32.CreateCompatibleBitmap(self.hdc_screen, self.w, self.h)
+        _gdi32.SelectObject(self.hdc_mem, self.hbm)
 
         self.bmi = bytearray(40)
         self.bmi[0:4] = (40).to_bytes(4, "little")
@@ -201,14 +245,16 @@ class FastScreenCapture:
         self.bmi_buf = (ctypes.c_char * 40).from_buffer(self.bmi)
 
     def grab_frame(self) -> av.VideoFrame:
-        self.gdi32.BitBlt(self.hdc_mem, 0, 0, self.w, self.h, self.hdc_screen, 0, 0, 0x00CC0020)
-        self.gdi32.GetDIBits(self.hdc_mem, self.hbm, 0, self.h, self.c_buf, self.bmi_buf, 0)
+        _attach_interactive_desktop()
+        _gdi32.BitBlt(self.hdc_mem, 0, 0, self.w, self.h, self.hdc_screen, 0, 0, 0x00CC0020)
+        _gdi32.GetDIBits(self.hdc_mem, self.hbm, 0, self.h, self.c_buf, self.bmi_buf, 0)
         arr = np.frombuffer(self.buf, dtype=np.uint8).reshape((self.h, self.w, 4))
         return av.VideoFrame.from_ndarray(arr, format="bgra")
 
     def grab_frame_jpeg(self, quality: int = 70, scale: float = 1.0) -> bytes:
-        self.gdi32.BitBlt(self.hdc_mem, 0, 0, self.w, self.h, self.hdc_screen, 0, 0, 0x00CC0020)
-        self.gdi32.GetDIBits(self.hdc_mem, self.hbm, 0, self.h, self.c_buf, self.bmi_buf, 0)
+        _attach_interactive_desktop()
+        _gdi32.BitBlt(self.hdc_mem, 0, 0, self.w, self.h, self.hdc_screen, 0, 0, 0x00CC0020)
+        _gdi32.GetDIBits(self.hdc_mem, self.hbm, 0, self.h, self.c_buf, self.bmi_buf, 0)
         img = Image.frombuffer("RGBA", (self.w, self.h), bytes(self.buf), "raw", "BGRA", 0, 1)
         if scale != 1.0:
             nw = max(320, int(self.w * scale))
@@ -221,9 +267,9 @@ class FastScreenCapture:
 
     def close(self):
         try:
-            self.gdi32.DeleteObject(self.hbm)
-            self.gdi32.DeleteDC(self.hdc_mem)
-            self.user32.ReleaseDC(0, self.hdc_screen)
+            _gdi32.DeleteObject(self.hbm)
+            _gdi32.DeleteDC(self.hdc_mem)
+            _user32.ReleaseDC(None, self.hdc_screen)
         except Exception:
             pass
 
@@ -332,6 +378,7 @@ class AgentUIManager:
         self.active_sockets: List[WebSocket] = []
         self.socket_queues: Dict[WebSocket, asyncio.Queue] = {}
         self.socket_clients: Dict[WebSocket, str] = {}
+        self.screen_stream_tasks: Dict[WebSocket, asyncio.Task] = {}
         self._sockets_lock = threading.Lock()
         self._last_meter_time = 0.0
         self._latest_reply_audio: Optional[bytes] = None
@@ -702,39 +749,84 @@ class AgentUIManager:
             return
 
         # 3. Direct YouTube Video Play
-        # Handles e.g. "play bohemian rhapsody on youtube", "play interstellar soundtrack", "play lofi hip hop"
-        yt_match = re.match(r"^(?:please\s+)?(?:play|search and play)\s+(.+?)(?:\s+on\s+youtube|\s+in\s+youtube)?$", normalised)
+        # Handles e.g. "play ram bhajan on youtube", "paly rambhajan on youtube", "open ram bhajan on youtube", "search ram bhajan on youtube", "play lofi"
+        yt_match = re.match(
+            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:play|paly|search\s+and\s+play|search\s+for|search|stream|listen\s+to|watch|open)\s+(.+?)(?:\s+on\s+youtube|\s+in\s+youtube)?$",
+            normalised,
+        )
         if yt_match and not any(k in normalised for k in ("game", "with", "around")):
             target_video = yt_match.group(1).strip()
-            if target_video not in ("video", "the video", "music", "the music"):
+            target_video = re.sub(r"^(?:the\s+|up\s+)", "", target_video).strip()
+            # If not just asking for homepage
+            if target_video.lower() not in ("youtube", "the youtube", "yt", "video", "the video", "music", "the music", ""):
                 self.set_state("thinking", {"request": text})
                 self.add_timeline("agent", f"Searching YouTube for \"{target_video}\"")
                 call_res = json.loads(self.toolbox.call("play_youtube_video", {"query": target_video, "autoplay": True}))
+                vid_url = call_res.get("url") or "https://www.youtube.com"
+                vid_id = call_res.get("video_id")
                 reply = f"Playing {target_video} on YouTube."
                 item["reply"] = reply
                 item["status"] = "success"
                 item["tools"].append({"name": "play_youtube_video", "args": {"query": target_video}, "result": call_res})
                 self.history.append(item)
+                # Broadcast video URL event to phone client so user can tap to open or view on phone!
+                self.broadcast_sync("web_app_opened", {
+                    "app": f"YouTube: {target_video}",
+                    "url": vid_url,
+                    "video_id": vid_id,
+                    "source": source,
+                    "message": reply,
+                })
                 self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
                 return
 
-        # 4. Direct Open Web App
-        # Handles e.g. "open youtube", "open spotify", "open netflix", "open github", "open gmail"
-        open_match = re.match(r"^(?:please\s+)?(?:open|launch|go to)\s+([a-zA-Z0-9_\-\.\s]+)$", normalised)
-        if open_match:
-            app_target = open_match.group(1).strip()
-            from tools import WEB_APPS
-            if app_target.lower() in WEB_APPS or "." in app_target:
-                self.set_state("thinking", {"request": text})
-                self.add_timeline("agent", f"Opening web app \"{app_target}\"")
-                call_res = json.loads(self.toolbox.call("open_web_app", {"app_name_or_url": app_target}))
-                reply = f"Opening {app_target}."
-                item["reply"] = reply
-                item["status"] = "success"
-                item["tools"].append({"name": "open_web_app", "args": {"app_name_or_url": app_target}, "result": call_res})
-                self.history.append(item)
-                self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
-                return
+        # 4. Direct Open Web App / Website / YouTube
+        # Handles e.g. "open youtube", "open youtube on my phone", "can you open youtube", "go to youtube.com", "open spotify", "launch netflix"
+        clean_target = normalised
+        # Strip common conversational opening phrases
+        clean_target = re.sub(
+            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+|would\s+you\s+)?(?:open|launch|go\s+to|start|show\s+me|visit)\s+",
+            "",
+            clean_target,
+        ).strip()
+        # Strip common location or device suffixes
+        clean_target = re.sub(
+            r"\s+(?:on\s+my\s+phone|on\s+the\s+phone|on\s+phone|on\s+my\s+mobile|on\s+mobile|on\s+my\s+laptop|on\s+the\s+laptop|on\s+laptop|on\s+my\s+pc|on\s+the\s+pc|on\s+pc|on\s+my\s+computer|on\s+computer|in\s+browser|in\s+chrome|in\s+edge|please|website|app|now)$",
+            "",
+            clean_target,
+        ).strip()
+        # Strip leading "the " or "up " e.g. "open up youtube", "open the youtube"
+        clean_target = re.sub(r"^(?:up\s+|the\s+)", "", clean_target).strip()
+
+        from tools import WEB_APPS
+        app_key = clean_target.lower()
+        matched_app = None
+        if app_key in WEB_APPS:
+            matched_app = app_key
+        elif "." in app_key and " " not in app_key:
+            matched_app = app_key
+        elif normalised in WEB_APPS:
+            matched_app = normalised
+
+        if matched_app:
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", f"Opening \"{matched_app}\"")
+            call_res = json.loads(self.toolbox.call("open_web_app", {"app_name_or_url": matched_app}))
+            target_url = call_res.get("url") or WEB_APPS.get(matched_app.lower(), f"https://{matched_app}")
+            reply = f"Opening {matched_app.capitalize()}."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "open_web_app", "args": {"app_name_or_url": matched_app}, "result": call_res})
+            self.history.append(item)
+            # Broadcast web_app_opened to clients (allows phone to show quick open button)
+            self.broadcast_sync("web_app_opened", {
+                "app": matched_app,
+                "url": target_url,
+                "source": source,
+                "message": reply,
+            })
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
 
         self.set_state("thinking", {"request": text})
         self.add_timeline("agent", f"Processing request: \"{text}\"")
@@ -755,6 +847,37 @@ class AgentUIManager:
             elif status_type == "tool_result":
                 self.broadcast_sync("tool_completed", data)
                 item["tools"].append(data)
+                t_name = data.get("name", "")
+                if t_name == "play_youtube_video":
+                    try:
+                        raw_r = data.get("result")
+                        res_obj = json.loads(raw_r) if isinstance(raw_r, str) else (raw_r or {})
+                        v_url = res_obj.get("url") or "https://www.youtube.com"
+                        v_id = res_obj.get("video_id")
+                        v_q = res_obj.get("query", "YouTube Video")
+                        self.broadcast_sync("web_app_opened", {
+                            "app": f"YouTube: {v_q}",
+                            "url": v_url,
+                            "video_id": v_id,
+                            "source": source,
+                            "message": f"Playing {v_q} on YouTube.",
+                        })
+                    except Exception:
+                        pass
+                elif t_name == "open_web_app":
+                    try:
+                        raw_r = data.get("result")
+                        res_obj = json.loads(raw_r) if isinstance(raw_r, str) else (raw_r or {})
+                        v_url = res_obj.get("url")
+                        a_name = res_obj.get("app") or "Web App"
+                        self.broadcast_sync("web_app_opened", {
+                            "app": a_name,
+                            "url": v_url,
+                            "source": source,
+                            "message": f"Opened {a_name}.",
+                        })
+                    except Exception:
+                        pass
 
         try:
             t_llm_start = time.monotonic()
@@ -1011,6 +1134,36 @@ manager: Optional[AgentUIManager] = None
 
 
 # --------------------------------------------------------------------------- #
+# Security & Remote Client Authentication Helpers
+# --------------------------------------------------------------------------- #
+def is_remote_client(client_host: str, headers: Any) -> bool:
+    """Detects whether an incoming request or WebSocket originated remotely (tunnel or LAN)."""
+    try:
+        h_dict = {str(k).lower(): str(v) for k, v in headers.items()}
+    except Exception:
+        h_dict = {}
+    host_header = h_dict.get("host", "").lower()
+    is_tunnel = bool(
+        h_dict.get("cf-connecting-ip")
+        or h_dict.get("cf-ray")
+        or ("trycloudflare.com" in host_header)
+    )
+    is_lan_or_wan = client_host not in ("127.0.0.1", "::1", "localhost")
+    return is_tunnel or is_lan_or_wan
+
+
+def check_request_auth(request: Request) -> None:
+    """Validates pairing auth token for any non-localhost / remote / tunnel request."""
+    if not manager or not manager.cfg.auth_token:
+        return
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    if is_remote_client(client_ip, request.headers):
+        token = request.query_params.get("token") or request.headers.get("x-auth-token")
+        if token != manager.cfg.auth_token:
+            raise HTTPException(status_code=401, detail="Unauthorized: valid pairing key required")
+
+
+# --------------------------------------------------------------------------- #
 # REST Endpoints
 # --------------------------------------------------------------------------- #
 @app.get("/api/status")
@@ -1153,7 +1306,8 @@ def post_interrupt() -> JSONResponse:
 
 
 @app.post("/api/settings")
-def post_settings(payload: Dict[str, Any]) -> JSONResponse:
+def post_settings(request: Request, payload: Dict[str, Any]) -> JSONResponse:
+    check_request_auth(request)
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
     cfg = manager.cfg
@@ -1264,51 +1418,155 @@ def post_speak_local(payload: Dict[str, Any]) -> JSONResponse:
     return JSONResponse(content={"status": "ok"})
 
 
+def _on_tunnel_change(info: Dict[str, Any]) -> None:
+    """Broadcasts tunnel state updates reactively to all connected clients."""
+    if manager:
+        auth_token = manager.cfg.auth_token or ""
+        enriched = dict(info)
+        if enriched.get("active") and enriched.get("public_url"):
+            enriched["authenticated_url"] = f"{enriched['public_url']}?token={auth_token}"
+        manager.broadcast_sync("tunnel_status", {"tunnel": enriched})
+
+
+tunnel_manager.on_change = _on_tunnel_change
+
+
 @app.get("/api/network-info")
-def get_network_info() -> JSONResponse:
+def get_network_info(request: Request) -> JSONResponse:
     ip = get_local_ip()
     port = manager.cfg.ui_port if manager else 8000
     protocol = "https" if (manager and manager.cfg.ui_ssl) else "http"
+    auth_token = manager.cfg.auth_token if manager else ""
+    local_url = f"{protocol}://{ip}:{port}"
+
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    is_remote = is_remote_client(client_ip, request.headers)
+    token = request.query_params.get("token") or request.headers.get("x-auth-token")
+    is_authorized = (not is_remote) or (bool(auth_token) and token == auth_token)
+
+    t_info = tunnel_manager.get_info()
+    remote_url = None
+    if t_info["active"] and t_info["public_url"]:
+        remote_url = f"{t_info['public_url']}?token={auth_token}" if is_authorized else t_info["public_url"]
+
+    local_auth_url = f"{local_url}?token={auth_token}" if is_authorized else local_url
+
     return JSONResponse(content={
         "local_ip": ip,
         "port": port,
         "protocol": protocol,
-        "url": f"{protocol}://{ip}:{port}",
+        "url": local_url,
+        "local_url": local_auth_url,
+        "remote_url": remote_url,
+        "auth_token": auth_token if is_authorized else "",
+        "tunnel": t_info,
         "hostname": socket.gethostname(),
         "ssl_enabled": manager.cfg.ui_ssl if manager else False,
     })
 
 
+@app.get("/api/tunnel/status")
+def get_tunnel_status(request: Request) -> JSONResponse:
+    info = tunnel_manager.get_info()
+    auth_token = manager.cfg.auth_token if manager else ""
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    is_remote = is_remote_client(client_ip, request.headers)
+    token = request.query_params.get("token") or request.headers.get("x-auth-token")
+    is_authorized = (not is_remote) or (bool(auth_token) and token == auth_token)
+
+    if info["active"] and info["public_url"]:
+        info["authenticated_url"] = f"{info['public_url']}?token={auth_token}" if is_authorized else info["public_url"]
+    return JSONResponse(content=info)
+
+
+@app.post("/api/tunnel/toggle")
+def post_tunnel_toggle(request: Request, payload: Dict[str, Any] = None) -> JSONResponse:
+    auth_token = manager.cfg.auth_token if manager else ""
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    is_remote = is_remote_client(client_ip, request.headers)
+    token = request.query_params.get("token") or request.headers.get("x-auth-token")
+    if is_remote and (not auth_token or token != auth_token):
+        raise HTTPException(status_code=401, detail="Unauthorized: pairing token required")
+
+    enable = payload.get("enable") if payload else None
+    info = tunnel_manager.get_info()
+    if enable is True or (enable is None and not info["active"]):
+        port = manager.cfg.ui_port if manager else 8000
+        ssl = manager.cfg.ui_ssl if manager else True
+        threading.Thread(target=tunnel_manager.start, args=(port, ssl), daemon=True).start()
+        info = {
+            "active": False,
+            "status": "starting",
+            "public_url": None,
+            "error": None,
+        }
+    else:
+        tunnel_manager.stop()
+        info = tunnel_manager.get_info()
+
+    if info.get("active") and info.get("public_url"):
+        info["authenticated_url"] = f"{info['public_url']}?token={auth_token}"
+    return JSONResponse(content={"status": "ok", "tunnel": info})
+
+
 @app.get("/api/screen/frame")
-def get_screen_frame(quality: int = 70, scale: float = 0.8) -> Response:
+def get_screen_frame(request: Request, quality: int = 70, scale: float = 0.8) -> Response:
     """Returns a single snapshot JPEG frame of the primary laptop screen."""
+    check_request_auth(request)
+    quality = max(30, min(95, quality))
+    scale = max(0.3, min(1.0, scale))
+    streamer = ScreenStreamer()
     try:
-        streamer = ScreenStreamer()
         frame = streamer.grab_frame_jpeg(quality=quality, scale=scale)
-        return Response(content=frame, media_type="image/jpeg")
+        return Response(
+            content=frame,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Screen capture failed: {e}")
+    finally:
+        streamer.fsc.close()
 
 
 @app.get("/api/screen/stream")
-async def get_screen_stream(quality: int = 60, scale: float = 0.75, fps: int = 20):
+async def get_screen_stream(request: Request, quality: int = 60, scale: float = 0.75, fps: int = 20):
     """High-speed MJPEG screen mirror video stream for phone browser."""
+    check_request_auth(request)
+    quality = max(30, min(95, quality))
+    scale = max(0.3, min(1.0, scale))
+    fps = max(5, min(30, fps))
     streamer = ScreenStreamer()
-    delay = 1.0 / max(5, min(30, fps))
+    delay = 1.0 / fps
 
     async def _stream():
-        while True:
-            try:
-                frame = streamer.grab_frame_jpeg(quality=quality, scale=scale)
-                yield (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-                )
-                await asyncio.sleep(delay)
-            except Exception:
-                await asyncio.sleep(0.1)
+        try:
+            while True:
+                try:
+                    frame = streamer.grab_frame_jpeg(quality=quality, scale=scale)
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                    )
+                    await asyncio.sleep(delay)
+                except (asyncio.CancelledError, GeneratorExit):
+                    break
+                except Exception:
+                    await asyncio.sleep(0.1)
+        finally:
+            streamer.fsc.close()
 
-    return StreamingResponse(_stream(), media_type="multipart/x-mixed-replace; boundary=frame")
+    return StreamingResponse(
+        _stream(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
 
 
 def simulate_screen_click(x_norm: float, y_norm: float, button: str = "left") -> tuple[int, int]:
@@ -1319,34 +1577,25 @@ def simulate_screen_click(x_norm: float, y_norm: float, button: str = "left") ->
         except Exception:
             pass
 
-        user32 = ctypes.windll.user32
-        try:
-            hWinsta = user32.OpenWindowStationW("winsta0", False, 0x10000000)
-            if hWinsta:
-                user32.SetProcessWindowStation(hWinsta)
-            hDesk = user32.OpenDesktopW("default", 0, False, 0x10000000)
-            if hDesk:
-                user32.SetThreadDesktop(hDesk)
-        except Exception:
-            pass
+        _attach_interactive_desktop()
 
-        sw = user32.GetSystemMetrics(0) or 1920
-        sh = user32.GetSystemMetrics(1) or 1080
+        sw = _user32.GetSystemMetrics(0) or 1920
+        sh = _user32.GetSystemMetrics(1) or 1080
         tx = max(0, min(sw - 1, int(x_norm * sw)))
         ty = max(0, min(sh - 1, int(y_norm * sh)))
-        user32.SetCursorPos(tx, ty)
+        _user32.SetCursorPos(tx, ty)
         if button == "left":
-            user32.mouse_event(0x0002, 0, 0, 0, 0)
-            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            _user32.mouse_event(0x0002, 0, 0, 0, 0)
+            _user32.mouse_event(0x0004, 0, 0, 0, 0)
         elif button == "right":
-            user32.mouse_event(0x0008, 0, 0, 0, 0)
-            user32.mouse_event(0x0010, 0, 0, 0, 0)
+            _user32.mouse_event(0x0008, 0, 0, 0, 0)
+            _user32.mouse_event(0x0010, 0, 0, 0, 0)
         elif button == "double":
-            user32.mouse_event(0x0002, 0, 0, 0, 0)
-            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            _user32.mouse_event(0x0002, 0, 0, 0, 0)
+            _user32.mouse_event(0x0004, 0, 0, 0, 0)
             time.sleep(0.04)
-            user32.mouse_event(0x0002, 0, 0, 0, 0)
-            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            _user32.mouse_event(0x0002, 0, 0, 0, 0)
+            _user32.mouse_event(0x0004, 0, 0, 0, 0)
         print(f"[Remote Click] Simulated {button} click at ({tx}, {ty}) for normalized ({x_norm:.3f}, {y_norm:.3f})")
         return tx, ty
     except Exception as e:
@@ -1355,8 +1604,9 @@ def simulate_screen_click(x_norm: float, y_norm: float, button: str = "left") ->
 
 
 @app.post("/api/screen/click")
-def post_screen_click(payload: Dict[str, Any]) -> JSONResponse:
+def post_screen_click(request: Request, payload: Dict[str, Any]) -> JSONResponse:
     """Remote mouse click simulation for tapping on phone screen mirror."""
+    check_request_auth(request)
     x_norm = float(payload.get("x", 0))
     y_norm = float(payload.get("y", 0))
     button = str(payload.get("button", "left")).lower()
@@ -1369,8 +1619,9 @@ def post_screen_click(payload: Dict[str, Any]) -> JSONResponse:
 
 
 @app.post("/api/audio/transcribe")
-async def post_audio_transcribe(payload: Dict[str, Any]) -> JSONResponse:
+async def post_audio_transcribe(request: Request, payload: Dict[str, Any]) -> JSONResponse:
     """Receives audio blob (base64) from phone mic and transcribes via Whisper."""
+    check_request_auth(request)
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
     raw_b64 = payload.get("audio", "")
@@ -1436,8 +1687,9 @@ async def handle_incoming_webrtc_audio(track, mgr: AgentUIManager) -> None:
 
 
 @app.post("/api/webrtc/offer")
-async def post_webrtc_offer(payload: Dict[str, Any]) -> JSONResponse:
+async def post_webrtc_offer(request: Request, payload: Dict[str, Any]) -> JSONResponse:
     """Establishes 60 FPS WebRTC screen stream & 2-way audio with phone browser."""
+    check_request_auth(request)
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
 
@@ -1497,6 +1749,18 @@ async def post_webrtc_offer(payload: Dict[str, Any]) -> JSONResponse:
 # --------------------------------------------------------------------------- #
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    client_ip = getattr(websocket.client, "host", "") if websocket.client else ""
+    token = websocket.query_params.get("token") or websocket.headers.get("x-auth-token")
+    is_remote = is_remote_client(client_ip, websocket.headers)
+
+    # If incoming from remote/tunnel (non-localhost), verify auth token
+    if is_remote:
+        if manager and manager.cfg.auth_token:
+            if token != manager.cfg.auth_token:
+                print(f"[WebSocket Auth] Rejected unauthorized connection from {client_ip} (remote={is_remote})")
+                await websocket.close(code=4401, reason="Unauthorized: Invalid Token")
+                return
+
     await websocket.accept()
     if manager is None:
         await websocket.close()
@@ -1536,10 +1800,18 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     manager.active_sockets.remove(websocket)
                 manager.socket_queues.pop(websocket, None)
                 manager.socket_clients.pop(websocket, None)
+                stream_task = manager.screen_stream_tasks.pop(websocket, None)
+                if stream_task and not stream_task.done():
+                    stream_task.cancel()
 
     sender_task = asyncio.create_task(_client_sender())
 
     local_ip = get_local_ip()
+    t_info = tunnel_manager.get_info()
+    auth_token = manager.cfg.auth_token if manager else ""
+    if t_info.get("active") and t_info.get("public_url"):
+        t_info["authenticated_url"] = f"{t_info['public_url']}?token={auth_token}"
+
     # Send initial state snapshot with network info via sender queue
     init_msg = json.dumps({
         "type": "init",
@@ -1551,7 +1823,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             "local_ip": local_ip,
             "port": manager.cfg.ui_port,
             "protocol": "https" if manager.cfg.ui_ssl else "http",
-            "url": f"{'https' if manager.cfg.ui_ssl else 'http'}://{local_ip}:{manager.cfg.ui_port}",
+            "url": f"{'https' if manager.cfg.ui_ssl else 'http'}://{local_ip}:{manager.cfg.ui_port}?token={auth_token}",
+            "auth_token": auth_token,
+            "tunnel": t_info,
         },
     })
     await queue.put(init_msg)
@@ -1635,6 +1909,50 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 y_norm = float(msg.get("y", 0))
                 btn = str(msg.get("button", "left")).lower()
                 simulate_screen_click(x_norm, y_norm, btn)
+
+            elif msg_type == "start_screen_stream":
+                fps = max(5, min(25, int(msg.get("fps", 15))))
+                quality = max(35, min(75, int(msg.get("quality", 55))))
+                scale = max(0.4, min(0.9, float(msg.get("scale", 0.65))))
+
+                old_task = manager.screen_stream_tasks.pop(websocket, None)
+                if old_task and not old_task.done():
+                    old_task.cancel()
+
+                async def _stream_screen_loop(ws=websocket, q=queue, target_fps=fps, qlty=quality, scl=scale):
+                    streamer = ScreenStreamer()
+                    interval = 1.0 / target_fps
+                    try:
+                        while True:
+                            t0 = time.monotonic()
+                            try:
+                                frame_jpeg = streamer.grab_frame_jpeg(quality=qlty, scale=scl)
+                                b64 = base64.b64encode(frame_jpeg).decode("ascii")
+                                if q.qsize() < 3:
+                                    await q.put(json.dumps({
+                                        "type": "screen_frame",
+                                        "data": b64,
+                                        "w": streamer.fsc.w,
+                                        "h": streamer.fsc.h,
+                                    }))
+                            except (asyncio.CancelledError, GeneratorExit):
+                                break
+                            except Exception:
+                                pass
+
+                            elapsed = time.monotonic() - t0
+                            sleep_dur = max(0.01, interval - elapsed)
+                            await asyncio.sleep(sleep_dur)
+                    finally:
+                        streamer.fsc.close()
+
+                task = asyncio.create_task(_stream_screen_loop())
+                manager.screen_stream_tasks[websocket] = task
+
+            elif msg_type == "stop_screen_stream":
+                task = manager.screen_stream_tasks.pop(websocket, None)
+                if task and not task.done():
+                    task.cancel()
 
             elif msg_type == "scroll":
                 direction = msg.get("direction", "down")
@@ -1721,10 +2039,14 @@ def run_server(cfg: Config, auto_open: bool = True) -> None:
     print(f"  ECOWHISPER COMMAND CENTER & REMOTE CONTROLLER")
     print(f"  [Laptop Display]  {url_local}")
     print(f"  [Phone / Mobile]  {url_phone}")
+    print(f"  [Pairing Token]   {cfg.auth_token}")
     print(f"  [Security]        {'HTTPS (Phone Mic & 60 FPS WebRTC Enabled)' if cfg.ui_ssl else 'HTTP'}")
     print(f"  Local AI: {cfg.model} @ {cfg.ollama_host}")
     print(f"  Voice: {cfg.tts_backend} ({cfg.tts_voice or 'default'})")
     print(f"=======================================================\n")
+
+    if cfg.remote_tunnel:
+        threading.Thread(target=tunnel_manager.start, args=(cfg.ui_port, cfg.ui_ssl), daemon=True).start()
 
     ssl_certfile = None
     ssl_keyfile = None

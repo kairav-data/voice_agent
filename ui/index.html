@@ -156,6 +156,7 @@
               </button>
             </div>
           </div>
+          <div class="agent-action-pill" id="agentActionPill" style="display: none;"></div>
         </div>
 
         <!-- Primary Controls & Quick Input Bar -->
@@ -471,49 +472,167 @@
     </div>
 
     <!-- ====================================================================
-         MOBILE CONNECT / QR CODE MODAL
+         MOBILE CONNECT / QR CODE MODAL (LOCAL WI-FI & REMOTE ANYWHERE)
          ==================================================================== -->
     <div class="modal-overlay" id="mobileConnectModal" role="dialog" aria-modal="true" aria-labelledby="mobileModalTitle">
       <div class="mobile-connect-card">
-        <div class="settings-header">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
-              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-              <line x1="12" y1="18" x2="12.01" y2="18"></line>
-            </svg>
-            <h3 id="mobileModalTitle">Access from Your Phone</h3>
+        <div class="mobile-connect-header">
+          <div class="mobile-connect-header-left">
+            <div class="mobile-icon-badge">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+            </div>
+            <div>
+              <h3 id="mobileModalTitle">Access from Your Phone</h3>
+              <p class="modal-subtitle">Control & mirror your PC from anywhere</p>
+            </div>
           </div>
-          <button class="icon-btn" id="btnCloseMobileConnect" title="Close">✕</button>
+          <button class="icon-btn" id="btnCloseMobileConnect" title="Close (Esc)">✕</button>
+        </div>
+
+        <!-- Connection Mode Tabs -->
+        <div class="mobile-mode-tabs" role="tablist">
+          <button class="mobile-tab-btn active" id="btnTabLocalWifi" role="tab" aria-selected="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+              <line x1="12" y1="20" x2="12.01" y2="20"></line>
+            </svg>
+            <span>Same Wi-Fi</span>
+          </button>
+          <button class="mobile-tab-btn" id="btnTabRemoteTunnel" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span>Remote Anywhere (Cellular)</span>
+          </button>
         </div>
 
         <div class="mobile-connect-body">
-          <p class="mobile-instructions">
-            Scan this QR code with your phone camera or open the link below on your phone to view your laptop screen at <strong>60 FPS</strong> and speak directly to ECO.
-          </p>
+          <!-- 1. LOCAL WI-FI PANE -->
+          <div class="mobile-tab-pane active" id="paneLocalWifi">
+            <p class="mobile-instructions">
+              Connect your phone to the <strong>same Wi-Fi</strong>, then scan this QR code or use the link below:
+            </p>
 
-          <!-- QR Code Container -->
-          <div class="qr-code-wrapper">
-            <img id="mobileQrImg" class="qr-code-img" src="" alt="Mobile Connection QR Code">
+            <div class="qr-code-wrapper">
+              <img id="mobileQrImg" class="qr-code-img" src="" alt="Local Wi-Fi QR Code">
+            </div>
+
+            <div class="mobile-url-box">
+              <span class="mobile-url-text" id="mobileUrlDisplay">https://192.168.1.10:8000</span>
+              <button class="btn-copy-url" id="btnCopyMobileUrl" title="Copy Network URL">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy</span>
+              </button>
+            </div>
           </div>
 
-          <div class="mobile-url-box">
-            <span class="mobile-url-text" id="mobileUrlDisplay">http://192.168.1.10:8000</span>
-            <button class="btn-secondary" id="btnCopyMobileUrl" style="padding: 6px 12px; font-size: 12px;" title="Copy Network URL to Clipboard">Copy</button>
+          <!-- 2. REMOTE ANYWHERE (TUNNEL) PANE -->
+          <div class="mobile-tab-pane" id="paneRemoteTunnel" style="display: none;">
+            <!-- Remote Tunnel Status & Control Header -->
+            <div class="remote-tunnel-control-bar">
+              <div class="tunnel-status-info">
+                <span class="tunnel-status-pill idle" id="remoteTunnelStatusPill">
+                  <span class="tunnel-dot"></span>
+                  <span id="remoteTunnelStatusLabel">Tunnel: Inactive</span>
+                </span>
+                <span class="tunnel-subtext" id="remoteTunnelSubtext">Ready to connect over cellular data</span>
+              </div>
+              <button class="btn-primary" id="btnToggleTunnel" style="padding: 7px 15px; font-size: 12px; font-weight: 600;">Start Remote Tunnel</button>
+            </div>
+
+            <!-- Remote Content when Active -->
+            <div id="remoteActiveContent" class="remote-active-pane" style="display: none;">
+              <p class="mobile-instructions">
+                Scan with phone camera from <strong>anywhere in the world</strong> (4G/5G mobile data or outside Wi-Fi):
+              </p>
+
+              <div class="qr-code-wrapper">
+                <img id="remoteQrImg" class="qr-code-img" src="" alt="Remote Anywhere QR Code">
+              </div>
+
+              <div class="mobile-url-box">
+                <span class="mobile-url-text" id="remoteUrlDisplay">https://...trycloudflare.com</span>
+                <button class="btn-copy-url" id="btnCopyRemoteUrl" title="Copy Remote URL">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Remote Content when Inactive -->
+            <div id="remoteInactiveContent" class="remote-inactive-box">
+              <div class="inactive-icon-circle">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+              </div>
+              <p class="inactive-title">Cellular Remote Access</p>
+              <p class="inactive-desc">
+                Launch a free, encrypted Cloudflare tunnel to talk to your laptop and control your screen from outside home. No router port forwarding required.
+              </p>
+            </div>
           </div>
 
           <div class="mobile-tips-list">
             <div class="mobile-tip-item">
               <span class="tip-num">1</span>
-              <span><strong>Built-in 60 FPS Screen</strong>: Tap <strong>🖥️ Screen</strong> for buttery smooth WebRTC screen mirroring + phone mic in one app.</span>
+              <div><strong>End-to-End Encrypted</strong>: Connections are secured with a cryptographic pairing token so only your phone can command your PC.</div>
             </div>
             <div class="mobile-tip-item">
               <span class="tip-num">2</span>
-              <span><strong>Using Chrome Remote Desktop?</strong> Keep this tab open on your phone with mic enabled; you can speak commands naturally while using Chrome Remote Desktop!</span>
+              <div><strong>60 FPS Screen Mirror</strong>: Tap <strong>🖥️ Screen</strong> to view and click your laptop screen remotely from anywhere.</div>
             </div>
             <div class="mobile-tip-item">
               <span class="tip-num">3</span>
-              <span><strong>Touch Clicks</strong>: Tap anywhere on the mirrored screen to click on your laptop.</span>
+              <div><strong>Hands-Free Phone Mic</strong>: Hold or tap mic to dictate commands to your laptop while away.</div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         AUTHENTICATION VERIFICATION MODAL (UNAUTHORIZED REMOTE ACCESS)
+         ==================================================================== -->
+    <div class="modal-overlay" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" style="display: none;">
+      <div class="mobile-connect-card" style="max-width: 420px;">
+        <div class="mobile-connect-header">
+          <div class="mobile-connect-header-left">
+            <div class="mobile-icon-badge" style="color: var(--accent-amber); background: var(--accent-amber-dim); border-color: rgba(217, 119, 6, 0.25);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 id="authModalTitle">Pairing Key Required</h3>
+              <p class="modal-subtitle">Authentication required to command PC</p>
+            </div>
+          </div>
+        </div>
+        <div class="mobile-connect-body" style="padding-top: 18px;">
+          <p class="mobile-instructions">
+            This voice agent is protected. Enter your laptop's 32-character pairing token, or scan the QR code from your laptop screen:
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 12px; width: 100%; box-sizing: border-box;">
+            <input type="password" id="inputAuthToken" placeholder="Paste 32-char Pairing Key here..." class="form-input" style="font-family: var(--font-mono); font-size: 13px; padding: 10px 14px;" />
+            <button class="btn-primary" id="btnSubmitAuthToken" style="padding: 11px; font-weight: 700; width: 100%;">Authenticate & Connect</button>
+            <div id="authErrorMsg" style="display: none; color: var(--accent-rose); font-size: 12px; text-align: center; font-weight: 500;">Invalid pairing key. Please check the key shown on your laptop.</div>
           </div>
         </div>
       </div>

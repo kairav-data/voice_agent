@@ -183,13 +183,35 @@ WEB_APPS: dict[str, str] = {
 }
 
 
+def open_browser_foreground(url: str) -> None:
+    """Opens URL in default browser and brings browser window to foreground on Windows."""
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(f'start "" "{url}"', shell=True)
+            ps_cmd = (
+                "$wshell = New-Object -ComObject WScript.Shell; "
+                "Start-Sleep -Milliseconds 350; "
+                "if ($wshell.AppActivate('YouTube')) {} "
+                "elseif ($wshell.AppActivate('Edge')) {} "
+                "elseif ($wshell.AppActivate('Chrome')) {}"
+            )
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-Command", ps_cmd],
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        else:
+            webbrowser.open(url)
+    except Exception:
+        webbrowser.open(url)
+
+
 def search_and_play_youtube(query: str, autoplay: bool = True) -> dict[str, Any]:
     """Search YouTube for a query, extract top video ID, and open in default browser with autoplay."""
     clean_q = query.strip()
     low = clean_q.lower()
 
     if not clean_q or low in ("youtube", "open youtube", "yt", "youtube.com"):
-        webbrowser.open("https://www.youtube.com")
+        open_browser_foreground("https://www.youtube.com")
         return {
             "status": "opened_home",
             "url": "https://www.youtube.com",
@@ -235,7 +257,7 @@ def search_and_play_youtube(query: str, autoplay: bool = True) -> dict[str, Any]
         print(f"[tools] YouTube search fallback: {exc}", file=sys.stderr)
         target_url = search_url
 
-    webbrowser.open(target_url)
+    open_browser_foreground(target_url)
     return {
         "status": "playing" if video_id else "opened_search",
         "query": search_term,
@@ -258,7 +280,7 @@ def open_web_application(app_or_url: str) -> dict[str, Any]:
 
     if low in WEB_APPS:
         target_url = WEB_APPS[low]
-        webbrowser.open(target_url)
+        open_browser_foreground(target_url)
         return {"status": "opened", "app": low, "url": target_url, "message": f"Opened {low}."}
 
     if target.startswith("http://") or target.startswith("https://"):
@@ -268,7 +290,7 @@ def open_web_application(app_or_url: str) -> dict[str, Any]:
     else:
         target_url = f"https://www.google.com/search?q={urllib.parse.quote(target)}"
 
-    webbrowser.open(target_url)
+    open_browser_foreground(target_url)
     return {"status": "opened", "target": target, "url": target_url, "message": f"Opened {target}."}
 
 

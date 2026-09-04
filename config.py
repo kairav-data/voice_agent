@@ -22,6 +22,29 @@ def _env_float(name: str, default: float) -> float:
     return float(_env(name, str(default)))
 
 
+def _get_or_create_auth_token() -> str:
+    env_token = os.environ.get("VA_AUTH_TOKEN")
+    if env_token:
+        return env_token.strip()
+    token_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".auth_token")
+    if os.path.exists(token_file):
+        try:
+            with open(token_file, "r", encoding="utf-8") as f:
+                tok = f.read().strip()
+                if tok:
+                    return tok
+        except Exception:
+            pass
+    import secrets
+    new_token = secrets.token_hex(16)
+    try:
+        with open(token_file, "w", encoding="utf-8") as f:
+            f.write(new_token)
+    except Exception:
+        pass
+    return new_token
+
+
 @dataclass
 class Config:
     # ---------------- LLM (Ollama) ----------------
@@ -81,6 +104,8 @@ class Config:
     ui_ssl: bool = _env("SSL", "true").lower() in ("true", "1", "yes")
     ssl_cert: str = _env("SSL_CERT", "cert.pem")
     ssl_key: str = _env("SSL_KEY", "key.pem")
+    remote_tunnel: bool = _env("REMOTE_TUNNEL", "0") == "1"
+    auth_token: str = field(default_factory=lambda: _get_or_create_auth_token())
 
     system_prompt: str = field(default="")
 
@@ -116,6 +141,7 @@ Antigravity CLI and Claude CLI handling:
   Run `run_command` with: `claude -p --dangerously-skip-permissions "<prompt>"`
 
 General instructions:
+- Remote phone control context: The user may be commanding you from their mobile phone or remotely. All actions (opening apps, websites, playing videos, terminal commands) are executed on the host computer. If the user says "open youtube on my phone", "open youtube", or mentions "phone", ALWAYS execute the tool (`open_web_app` or `play_youtube_video`) on the computer immediately. Never refuse or ask whether to open it on the PC instead.
 - Prefer using the dedicated `play_youtube_video`, `open_web_app`, `scroll_page`, and `control_media` tools for web and media requests.
 - For general Windows or developer tasks, run the appropriate PowerShell / CMD command.
 - If a command fails, read the error and try once more with a fix before giving up.
