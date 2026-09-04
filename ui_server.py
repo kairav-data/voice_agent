@@ -156,10 +156,33 @@ class FastScreenCapture:
     """Ultra-fast zero-copy Windows GDI screen capture delivering 60-200 FPS."""
 
     def __init__(self):
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+
         self.user32 = ctypes.windll.user32
         self.gdi32 = ctypes.windll.gdi32
+
+        # Attach to interactive Windows desktop station
+        try:
+            hWinsta = self.user32.OpenWindowStationW("winsta0", False, 0x10000000)
+            if hWinsta:
+                self.user32.SetProcessWindowStation(hWinsta)
+            hDesk = self.user32.OpenDesktopW("default", 0, False, 0x10000000)
+            if hDesk:
+                self.user32.SetThreadDesktop(hDesk)
+        except Exception:
+            pass
+
         self.w = self.user32.GetSystemMetrics(0)
         self.h = self.user32.GetSystemMetrics(1)
+        if not self.w or not self.h:
+            self.w, self.h = 1920, 1080
+
         self.hdc_screen = self.user32.GetDC(0)
         self.hdc_mem = self.gdi32.CreateCompatibleDC(self.hdc_screen)
         self.hbm = self.gdi32.CreateCompatibleBitmap(self.hdc_screen, self.w, self.h)
@@ -183,7 +206,7 @@ class FastScreenCapture:
         arr = np.frombuffer(self.buf, dtype=np.uint8).reshape((self.h, self.w, 4))
         return av.VideoFrame.from_ndarray(arr, format="bgra")
 
-    def grab_frame_jpeg(self, quality: int = 65, scale: float = 0.75) -> bytes:
+    def grab_frame_jpeg(self, quality: int = 70, scale: float = 1.0) -> bytes:
         self.gdi32.BitBlt(self.hdc_mem, 0, 0, self.w, self.h, self.hdc_screen, 0, 0, 0x00CC0020)
         self.gdi32.GetDIBits(self.hdc_mem, self.hbm, 0, self.h, self.c_buf, self.bmi_buf, 0)
         img = Image.frombuffer("RGBA", (self.w, self.h), bytes(self.buf), "raw", "BGRA", 0, 1)
@@ -1291,9 +1314,24 @@ async def get_screen_stream(quality: int = 60, scale: float = 0.75, fps: int = 2
 def simulate_screen_click(x_norm: float, y_norm: float, button: str = "left") -> tuple[int, int]:
     """Simulates physical mouse click with per-monitor DPI awareness."""
     try:
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            pass
+
         user32 = ctypes.windll.user32
-        sw = user32.GetSystemMetrics(0)
-        sh = user32.GetSystemMetrics(1)
+        try:
+            hWinsta = user32.OpenWindowStationW("winsta0", False, 0x10000000)
+            if hWinsta:
+                user32.SetProcessWindowStation(hWinsta)
+            hDesk = user32.OpenDesktopW("default", 0, False, 0x10000000)
+            if hDesk:
+                user32.SetThreadDesktop(hDesk)
+        except Exception:
+            pass
+
+        sw = user32.GetSystemMetrics(0) or 1920
+        sh = user32.GetSystemMetrics(1) or 1080
         tx = max(0, min(sw - 1, int(x_norm * sw)))
         ty = max(0, min(sh - 1, int(y_norm * sh)))
         user32.SetCursorPos(tx, ty)
@@ -1441,6 +1479,12 @@ async def post_webrtc_offer(payload: Dict[str, Any]) -> JSONResponse:
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
+
+    # Wait briefly for local LAN candidate gathering so phone receives complete SDP
+    for _ in range(25):
+        if pc.iceGatheringState == "complete":
+            break
+        await asyncio.sleep(0.015)
 
     return JSONResponse(content={
         "sdp": pc.localDescription.sdp,

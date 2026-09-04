@@ -20,7 +20,6 @@
   const btnOpenConsole = document.getElementById("btnOpenConsole");
   const btnCloseConsole = document.getElementById("btnCloseConsole");
   const btnCopyConsole = document.getElementById("btnCopyConsole");
-  const consoleLiveDot = document.getElementById("consoleLiveDot");
   const toolTitle = document.getElementById("toolTitle");
   const toolPurpose = document.getElementById("toolPurpose");
   const toolRiskPill = document.getElementById("toolRiskPill");
@@ -33,7 +32,6 @@
   const btnPushToTalk = document.getElementById("btnPushToTalk");
   const btnStopInterrupt = document.getElementById("btnStopInterrupt");
   const btnToggleContinuous = document.getElementById("btnToggleContinuous");
-  const continuousDot = document.getElementById("continuousDot");
   const inputPrompt = document.getElementById("inputPrompt");
   const formPrompt = document.getElementById("formPrompt");
 
@@ -267,7 +265,7 @@
 
   // State Machine Labels
   const STATE_LABELS = {
-    idle: "READY",
+    idle: "",
     listening: "LISTENING",
     hearing: "HEARING",
     processing: "UNDERSTANDING",
@@ -289,14 +287,20 @@
 
     // Update State Badge
     stateBadge.className = `voice-state-badge state-${newState}`;
-    stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
+    if (newState === "idle") {
+      stateBadge.style.display = "none";
+      stateBadgeText.textContent = "";
+    } else {
+      stateBadge.style.display = "inline-flex";
+      stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
+    }
 
     // Update Center Label & Mic Button
     const pushToTalkLabel = document.getElementById("pushToTalkLabel");
     if (newState === "listening") {
       orbCenterLabel.textContent = "Listening";
       btnPushToTalk.classList.add("active");
-      if (pushToTalkLabel) pushToTalkLabel.textContent = "Listening... (Alt+M)";
+      if (pushToTalkLabel) pushToTalkLabel.textContent = isMobileDevice ? "Listening... (Tap to Send)" : "Listening... (Release to Send)";
     } else if (newState === "thinking") {
       orbCenterLabel.textContent = "Thinking";
       btnPushToTalk.classList.remove("active");
@@ -437,7 +441,7 @@
 
     } else if (type === "history_cleared") {
       historyContent.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 40px;">No conversation history.</p>';
-      userUtterance.textContent = 'Ready when you are. Say "Open VS Code" or click the orb.';
+      userUtterance.textContent = 'Say "Open VS Code" or click the orb.';
       userUtterance.classList.add("is-placeholder");
       agentResponseBox.style.display = "none";
       toolActionCard.style.display = "none";
@@ -489,27 +493,15 @@
       pillDev.textContent = clientDeviceType === "phone" ? "Phone Audio" : "Laptop Audio";
     }
 
-    const dotOllama = document.getElementById("dotOllama");
-    if (dotOllama) {
-      if (sys.ollama?.online) {
-        dotOllama.className = "sys-dot";
-      } else {
-        dotOllama.className = "sys-dot error";
-      }
-    }
-
     updateContinuousUI(sys.continuous_listening);
   }
 
   function updateContinuousUI(enabled) {
+    if (!btnToggleContinuous) return;
     if (enabled) {
-      continuousDot.style.background = "var(--accent-cyan)";
-      continuousDot.style.boxShadow = "0 0 8px var(--accent-cyan)";
       btnToggleContinuous.title = "Continuous Listening: Active";
       btnToggleContinuous.classList.add("active");
     } else {
-      continuousDot.style.background = "var(--text-muted)";
-      continuousDot.style.boxShadow = "none";
       btnToggleContinuous.title = "Continuous Listening: Paused";
       btnToggleContinuous.classList.remove("active");
     }
@@ -517,14 +509,14 @@
 
   // Tool Command Execution Handler
   function showToolCard(data) {
-    if (consoleLiveDot) {
-      consoleLiveDot.style.display = "block";
-      consoleLiveDot.className = "console-live-dot running";
+    if (btnOpenConsole) {
+      btnOpenConsole.classList.add("running");
     }
     const args = data.args || {};
     if (toolTitle) toolTitle.textContent = `${data.name || "run_command"}`;
     if (toolPurpose) toolPurpose.textContent = args.purpose || args.command || "Executing action...";
     if (toolRiskPill) {
+      toolRiskPill.style.display = "";
       toolRiskPill.textContent = "RUNNING";
       toolRiskPill.className = "risk-pill medium";
     }
@@ -541,15 +533,15 @@
   }
 
   function completeToolCard(data) {
-    if (consoleLiveDot) {
-      consoleLiveDot.style.display = "block";
-      consoleLiveDot.className = "console-live-dot completed";
+    if (btnOpenConsole) {
+      btnOpenConsole.classList.remove("running");
     }
     if (toolStatusBadge) {
       toolStatusBadge.textContent = `Completed`;
       toolStatusBadge.className = "tool-status-badge completed";
     }
     if (toolRiskPill) {
+      toolRiskPill.style.display = "";
       toolRiskPill.textContent = "SUCCESS";
       toolRiskPill.className = "risk-pill low";
     }
@@ -1369,10 +1361,12 @@
 
   if (btnToggleScreenFit) {
     btnToggleScreenFit.addEventListener("click", () => {
-      if (currentZoom > 1.05) {
-        setScreenZoom(1.0);
+      if (currentZoom < 1.25) {
+        setScreenZoom(1.65);
+      } else if (currentZoom < 2.0) {
+        setScreenZoom(2.5);
       } else {
-        setScreenZoom(1.35);
+        setScreenZoom(1.0);
       }
     });
   }
@@ -1398,10 +1392,23 @@
     });
   }
 
+  let webRtcWatchdog = null;
+
+  function activateStreamFallback() {
+    if (webRtcWatchdog) clearTimeout(webRtcWatchdog);
+    if (screenStreamVideo) screenStreamVideo.style.display = "none";
+    if (screenStreamImg) {
+      screenStreamImg.style.display = "block";
+      screenStreamImg.src = "/api/screen/stream?fps=30&quality=65&t=" + Date.now();
+    }
+  }
+
   async function startWebRTCScreen() {
     try {
+      if (webRtcWatchdog) clearTimeout(webRtcWatchdog);
       if (rtcPeerConnection) {
         rtcPeerConnection.close();
+        rtcPeerConnection = null;
       }
 
       // Reset Zoom & Pan
@@ -1413,6 +1420,14 @@
 
       // Ensure Mic is MUTED by default when starting
       updateScreenMicState(false);
+
+      // Set fallback timer if WebRTC stream doesn't arrive within 2.5s
+      webRtcWatchdog = setTimeout(() => {
+        if (screenStreamVideo && (!screenStreamVideo.srcObject || screenStreamVideo.paused)) {
+          console.warn("[WebRTC watchdog timeout, activating stream fallback]");
+          activateStreamFallback();
+        }
+      }, 2500);
 
       rtcPeerConnection = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -1426,9 +1441,29 @@
 
       rtcPeerConnection.ontrack = (event) => {
         if (event.track.kind === "video" && screenStreamVideo) {
+          if (webRtcWatchdog) clearTimeout(webRtcWatchdog);
           screenStreamVideo.srcObject = event.streams[0];
           screenStreamVideo.style.display = "block";
-          if (screenStreamImg) screenStreamImg.style.display = "none";
+          if (screenStreamImg) {
+            screenStreamImg.style.display = "none";
+            screenStreamImg.src = "";
+          }
+          screenStreamVideo.play().catch(() => {});
+        }
+      };
+
+      rtcPeerConnection.onconnectionstatechange = () => {
+        const s = rtcPeerConnection ? rtcPeerConnection.connectionState : "closed";
+        if (s === "failed" || s === "disconnected") {
+          console.warn("[WebRTC connection state failed, activating stream fallback]");
+          activateStreamFallback();
+        }
+      };
+
+      rtcPeerConnection.oniceconnectionstatechange = () => {
+        const is = rtcPeerConnection ? rtcPeerConnection.iceConnectionState : "closed";
+        if (is === "failed" || is === "disconnected") {
+          activateStreamFallback();
         }
       };
 
@@ -1447,18 +1482,15 @@
       if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
       const answer = await res.json();
       await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log("[WebRTC] Connected 60 FPS screen mirror (Mic Muted by Default)!");
+      console.log("[WebRTC] Connected 60 FPS screen mirror!");
     } catch (err) {
-      console.warn("[WebRTC connection failed, falling back to stream]", err);
-      if (screenStreamVideo) screenStreamVideo.style.display = "none";
-      if (screenStreamImg) {
-        screenStreamImg.style.display = "block";
-        screenStreamImg.src = "/api/screen/stream?fps=30&quality=65&t=" + Date.now();
-      }
+      console.warn("[WebRTC connection failed, activating stream fallback]", err);
+      activateStreamFallback();
     }
   }
 
   function stopWebRTCScreen() {
+    if (webRtcWatchdog) clearTimeout(webRtcWatchdog);
     updateScreenMicState(false);
     if (rtcMicStream) {
       rtcMicStream.getTracks().forEach((t) => t.stop());
@@ -1495,9 +1527,17 @@
 
   btnScreenFullscreen.addEventListener("click", () => {
     if (!document.fullscreenElement) {
-      screenMirrorOverlay.requestFullscreen().catch(() => {});
+      screenMirrorOverlay.requestFullscreen().then(() => {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock("landscape").catch(() => {});
+        }
+      }).catch(() => {});
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().then(() => {
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      }).catch(() => {});
     }
   });
 
@@ -1770,6 +1810,12 @@
   // Check on mobile startup
   if (isMobileDevice) {
     checkMobileMicSecurity();
+    const phoneKbd = document.querySelector(".btn-push-to-talk .kbd-badge");
+    if (phoneKbd) phoneKbd.style.display = "none";
+    if (btnPushToTalk) {
+      btnPushToTalk.setAttribute("title", "Tap to Talk");
+      btnPushToTalk.setAttribute("aria-label", "Tap to Talk");
+    }
   }
 
   async function startPhoneRecording() {

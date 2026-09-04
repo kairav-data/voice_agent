@@ -237,15 +237,6 @@ html, body {
   color: var(--text-primary);
 }
 
-.brand-icon-pulse {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--accent-cyan);
-  box-shadow: 0 0 12px var(--accent-cyan);
-  animation: pulse-glow 2.4s infinite ease-in-out;
-}
-
 .brand-version {
   font-size: 11px;
   font-weight: 500;
@@ -269,14 +260,6 @@ html, body {
   font-weight: 600;
   letter-spacing: 0.07em;
   color: var(--accent-emerald);
-}
-
-.local-badge-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent-emerald);
-  box-shadow: 0 0 6px var(--accent-emerald);
 }
 
 /* System Health Pills */
@@ -306,23 +289,6 @@ html, body {
   background: var(--bg-card-hover);
   border-color: var(--border-medium);
   color: var(--text-primary);
-}
-
-.sys-dot {
-  width: 5.5px;
-  height: 5.5px;
-  border-radius: 50%;
-  background: var(--accent-emerald);
-}
-
-.sys-dot.warning {
-  background: var(--accent-amber);
-  box-shadow: 0 0 6px var(--accent-amber);
-}
-
-.sys-dot.error {
-  background: var(--accent-rose);
-  box-shadow: 0 0 6px var(--accent-rose);
 }
 
 /* Header Controls */
@@ -430,6 +396,10 @@ html, body {
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.voice-state-badge.state-idle {
+  display: none !important;
+}
+
 .voice-state-badge.state-listening {
   color: var(--accent-cyan);
   border-color: rgba(2, 132, 199, 0.35);
@@ -472,13 +442,6 @@ html, body {
   background: var(--accent-rose-dim);
 }
 
-.state-dot-indicator {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 10px currentColor;
-}
 
 /* ==========================================================================
    CANVAS VOICE ORB (EXPANDED DYNAMIC SCALE)
@@ -684,7 +647,7 @@ html, body {
 .agent-avatar-mini {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: var(--radius-xs);
   background: var(--accent-cyan-dim);
   border: 1px solid rgba(2, 132, 199, 0.35);
   display: flex;
@@ -731,28 +694,6 @@ html, body {
 /* ==========================================================================
    COMMAND RUNNER & TERMINAL CONSOLE
    ========================================================================== */
-.console-live-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-cyan);
-  box-shadow: 0 0 8px var(--accent-cyan);
-}
-
-.console-live-dot.running {
-  background: var(--accent-amber);
-  box-shadow: 0 0 10px var(--accent-amber);
-  animation: pulse-glow 1s infinite ease-in-out;
-}
-
-.console-live-dot.completed {
-  background: var(--accent-emerald);
-  box-shadow: 0 0 8px var(--accent-emerald);
-}
-
 .console-drawer {
   width: 440px;
   max-width: 92vw;
@@ -1038,7 +979,7 @@ html, body {
 .input-submit-btn {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--accent-cyan-dim);
   border: 1px solid rgba(2, 132, 199, 0.25);
   color: var(--accent-cyan);
@@ -1047,6 +988,7 @@ html, body {
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .input-submit-btn:hover {
@@ -1356,11 +1298,11 @@ html, body {
 .timeline-entry::before {
   content: "";
   position: absolute;
-  left: -5px;
-  top: 2px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  left: -3px;
+  top: 4px;
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
   background: var(--accent-cyan);
 }
 
@@ -1404,6 +1346,10 @@ html, body {
   color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ==========================================================================
    PREMIUM SETTINGS MODAL & CONTROLS
    ========================================================================== */
@@ -1726,8 +1672,8 @@ html, body {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  z-index: 150;
-  background: #020408;
+  z-index: 9999;
+  background: #000000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1736,10 +1682,10 @@ html, body {
 
 /* Top Toolbar */
 .screen-mirror-toolbar {
-  height: 52px;
-  min-height: 52px;
-  padding: 0 16px;
-  background: var(--bg-glass-heavy);
+  height: 48px;
+  min-height: 48px;
+  padding: 0 12px;
+  background: rgba(10, 15, 25, 0.92);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--border-subtle);
@@ -1747,40 +1693,32 @@ html, body {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  z-index: 20;
+  z-index: 30;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .screen-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 10px;
-  overflow: hidden;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .screen-live-badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 10px;
+  gap: 6px;
+  padding: 3px 8px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: var(--radius-full);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #F87171;
   white-space: nowrap;
-}
-
-.live-pulse-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #EF4444;
-  box-shadow: 0 0 10px #EF4444;
-  animation: pulse-glow 1.6s infinite ease-in-out;
-  flex-shrink: 0;
 }
 
 .screen-stat-pill {
@@ -1807,38 +1745,40 @@ html, body {
   white-space: nowrap;
 }
 
-.mic-dot-live {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-emerald);
-  box-shadow: 0 0 8px var(--accent-emerald);
-  animation: pulse-glow 1.4s infinite ease-in-out;
-  flex-shrink: 0;
-}
-
 .screen-toolbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.screen-toolbar-right::-webkit-scrollbar {
+  display: none;
 }
 
 .screen-tool-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 6px 11px;
+  padding: 5px 9px;
+  height: 32px;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: all 0.15s ease;
   white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .screen-tool-btn:hover {
@@ -1871,7 +1811,7 @@ html, body {
 }
 
 .screen-tool-btn.danger {
-  padding: 6px 10px;
+  padding: 5px 9px;
   color: var(--text-secondary);
 }
 
@@ -1894,6 +1834,7 @@ html, body {
   cursor: crosshair;
   width: 100%;
   height: 100%;
+  min-height: 0;
   touch-action: none;
 }
 
@@ -2102,7 +2043,7 @@ html, body {
 .tip-num {
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: var(--radius-xs);
   background: rgba(0, 240, 255, 0.12);
   color: var(--accent-cyan);
   font-size: 10.5px;
@@ -2194,6 +2135,10 @@ html, body {
     padding: 0;
   }
 
+  .kbd-badge {
+    display: none !important;
+  }
+
   .main-stage {
     padding: 8px 12px 14px;
   }
@@ -2215,41 +2160,259 @@ html, body {
   }
 
   .starter-chips-row {
-    justify-content: flex-start;
-    padding-bottom: 2px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap; /* Wrap so all 5 chips are visible on phone with zero trimming */
+    justify-content: center; /* Centered align with input bar */
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    max-width: 100%;
+    padding: 2px 4px 6px;
+    overflow: visible;
   }
 
   .starter-chip {
     font-size: 11px;
-    padding: 4px 10px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    text-align: center;
+    border-radius: var(--radius-full);
   }
 
-  /* Screen Mirror Mobile Rules */
+  /* Safety Confirmation Modal Mobile Rules */
+  .modal-overlay {
+    padding: 12px;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .confirmation-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin: auto;
+  }
+
+  .confirmation-header {
+    padding: 14px 16px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .confirm-icon-badge {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  .confirm-title-block h3 {
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .confirm-title-block p {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .confirmation-body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .confirm-command-box {
+    padding: 10px 12px;
+    font-size: 11.5px;
+    margin-bottom: 12px;
+    word-break: break-all;
+  }
+
+  .confirm-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .confirm-grid-item {
+    padding: 8px 10px;
+  }
+
+  .confirm-grid-label {
+    font-size: 9px;
+    margin-bottom: 2px;
+  }
+
+  .confirm-grid-val {
+    font-size: 11.5px;
+    word-break: break-word;
+  }
+
+  .confirmation-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  .confirmation-actions .btn-primary-confirm,
+  .confirmation-actions .btn-secondary {
+    width: 100%;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  /* Screen Mirror Mobile Rules (Zero Trimming, Pixel-Perfect Alignment) */
   .screen-mirror-toolbar {
-    height: 48px;
-    padding: 0 10px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 8px;
+    gap: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .screen-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .screen-stat-pill {
     display: none;
   }
 
+  .screen-live-badge {
+    padding: 2px 6px;
+    font-size: 9.5px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .screen-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
   .screen-tool-btn {
-    padding: 6px 9px;
-    font-size: 11px;
+    height: 28px;
+    padding: 0 6px;
+    font-size: 10.5px;
+    gap: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    vertical-align: middle;
+  }
+
+  .screen-tool-btn span {
+    font-size: 10px;
+    display: inline;
+  }
+
+  .screen-tool-btn svg {
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  #btnToggleScreenFit,
+  #btnToggleTouchClicks,
+  #btnToggleScreenMic {
+    height: 28px;
+    padding: 0 6px;
+    gap: 3px;
+  }
+
+  #btnScreenScrollUp,
+  #btnScreenScrollDown,
+  #btnScreenPlayPause,
+  #btnCloseScreenMirror {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #btnScreenFullscreen {
+    display: none; /* In mobile browsers, overlay is already fixed 100dvh */
+  }
+
+  .screen-viewport-wrap {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .screen-canvas-transform-box {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .screen-stream-video,
+  .screen-stream-img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
   }
 
   .screen-floating-dictate-bar {
-    bottom: 16px;
-    width: 90%;
+    bottom: 14px;
+    width: min(90%, 320px);
     display: flex;
     justify-content: center;
+    pointer-events: auto;
   }
 
   .btn-mobile-dictate {
     width: 100%;
+    height: 44px;
     justify-content: center;
-    padding: 12px 20px;
+    padding: 0 16px;
+    font-size: 13px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -2274,5 +2437,9 @@ html, body {
   .orb-wrapper {
     width: min(190px, 24vh);
     height: min(190px, 24vh);
+  }
+
+  .screen-tool-btn span {
+    display: none; /* On micro screens < 380px, icons only for maximum breathability */
   }
 }

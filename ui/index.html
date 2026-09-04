@@ -23,7 +23,9 @@
     <header class="header-bar" role="banner">
       <div class="brand-section">
         <div class="brand-mark">
-          <div class="brand-icon-pulse"></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+            <path d="M12 2v20M17 5v14M7 5v14M2 10v4M22 10v4"></path>
+          </svg>
           <span>Voice Agent</span>
         </div>
       </div>
@@ -31,7 +33,12 @@
       <!-- Header Action Controls -->
       <div class="header-actions">
         <button class="icon-btn" id="btnToggleContinuous" title="Continuous Listening: Paused" aria-label="Toggle Continuous Listening">
-          <span class="sys-dot" id="continuousDot" style="background: var(--text-muted);"></span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
         </button>
 
         <button class="icon-btn" id="btnToggleScreenMirror" title="Live Laptop Screen Mirror (Ctrl+M)" aria-label="Toggle Screen Mirror">
@@ -55,12 +62,11 @@
           </svg>
         </button>
 
-        <button class="icon-btn" id="btnOpenConsole" title="Command Runner & Terminal Console (Ctrl+J)" aria-label="Open Command Console" style="position: relative;">
+        <button class="icon-btn" id="btnOpenConsole" title="Command Runner & Terminal Console (Ctrl+J)" aria-label="Open Command Console">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4 17 10 11 4 5"></polyline>
             <line x1="12" y1="19" x2="20" y2="19"></line>
           </svg>
-          <span class="console-live-dot" id="consoleLiveDot" style="display: none;"></span>
         </button>
 
         <button class="icon-btn" id="btnOpenTimeline" title="Activity Timeline (Ctrl+T)" aria-label="Open Timeline">
@@ -108,9 +114,8 @@
     <main class="main-stage" role="main">
       <div class="hero-voice-container">
         <!-- Voice State Badge -->
-        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status">
-          <div class="state-dot-indicator"></div>
-          <span id="voiceStateText">READY</span>
+        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status" style="display: none;">
+          <span id="voiceStateText"></span>
         </div>
 
         <!-- Central Voice Orb (Canvas Hero) -->
@@ -133,7 +138,7 @@
         <!-- Speech Stage & Conversation Display -->
         <div class="speech-stage">
           <div class="user-utterance is-placeholder" id="userUtterance">
-            Ready when you are. Say "Open Antigravity CLI" or click the orb.
+            Say "Open Antigravity CLI" or click the orb.
           </div>
 
           <!-- Spoken Reply Box -->
@@ -286,7 +291,9 @@
     <aside class="drawer-panel right-drawer" id="timelineDrawer" aria-label="Activity Timeline">
       <div class="drawer-header">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <div class="brand-icon-pulse" style="width: 8px; height: 8px;"></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
           <h3>Activity Stream</h3>
         </div>
         <div style="display: flex; gap: 6px;">
@@ -325,7 +332,7 @@
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
-          <span class="risk-pill low" id="toolRiskPill">READY</span>
+          <span class="risk-pill low" id="toolRiskPill" style="display: none;"></span>
           <span class="tool-status-badge completed" id="toolStatusBadge">Idle</span>
           <button class="icon-btn" id="btnCopyConsole" title="Copy Output" aria-label="Copy Output" style="width: 32px; height: 32px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -348,7 +355,7 @@
             <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700;">Tool Target</span>
             <span class="tool-meta-title" id="toolTitle" style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan);">run_command</span>
           </div>
-          <div class="tool-meta-purpose" id="toolPurpose" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">No command running. Ready to execute.</div>
+          <div class="tool-meta-purpose" id="toolPurpose" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">No command running. Waiting for action.</div>
         </div>
 
         <!-- Terminal Command Line -->
@@ -376,7 +383,6 @@
       <div class="screen-mirror-toolbar">
         <div class="screen-toolbar-left">
           <div class="screen-live-badge">
-            <span class="live-pulse-dot"></span>
             <span id="screenLiveBadgeText">60 FPS</span>
           </div>
 
@@ -405,9 +411,21 @@
           </button>
 
           <!-- Quick Scroll & Media Control -->
-          <button class="screen-tool-btn" id="btnScreenScrollUp" title="Scroll Laptop Screen Up">▲</button>
-          <button class="screen-tool-btn" id="btnScreenScrollDown" title="Scroll Laptop Screen Down">▼</button>
-          <button class="screen-tool-btn" id="btnScreenPlayPause" title="Play / Pause Video">⏯</button>
+          <button class="screen-tool-btn" id="btnScreenScrollUp" title="Scroll Laptop Screen Up">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+          <button class="screen-tool-btn" id="btnScreenScrollDown" title="Scroll Laptop Screen Down">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <button class="screen-tool-btn" id="btnScreenPlayPause" title="Play / Pause Video">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          </button>
 
           <!-- Touch Click Toggle -->
           <button class="screen-tool-btn active" id="btnToggleTouchClicks" title="Toggle Touch Clicks on Laptop">
@@ -425,7 +443,12 @@
             </svg>
           </button>
 
-          <button class="screen-tool-btn danger" id="btnCloseScreenMirror" title="Close Screen Mirror (Esc)">✕</button>
+          <button class="screen-tool-btn danger" id="btnCloseScreenMirror" title="Close Screen Mirror (Esc)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -463,7 +486,10 @@
       <div class="mobile-connect-card">
         <div class="settings-header">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <div class="brand-icon-pulse" style="width: 10px; height: 10px;"></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
             <h3 id="mobileModalTitle">Access from Your Phone</h3>
           </div>
           <button class="icon-btn" id="btnCloseMobileConnect" title="Close">✕</button>
