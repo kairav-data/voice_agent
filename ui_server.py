@@ -1,4 +1,4 @@
-"""FastAPI and WebSocket server for the Voice Agent UI Command Center.
+"""FastAPI and WebSocket server for the ECOWHISPER UI Command Center.
 
 Bridges the local Python audio/STT/Ollama/TTS pipeline with a 60 FPS
 futuristic web interface over low-latency WebSockets.
@@ -311,7 +311,7 @@ def decode_mobile_audio(audio_bytes: bytes) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # Application & Global State
 # --------------------------------------------------------------------------- #
-app = FastAPI(title="Voice Agent Command Center", version="2.4.0")
+app = FastAPI(title="ECOWHISPER Command Center", version="2.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -1194,7 +1194,7 @@ def post_settings(payload: Dict[str, Any]) -> JSONResponse:
 def post_test_voice(payload: Dict[str, Any]) -> JSONResponse:
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
-    text = payload.get("text") or "Hello. System online and voice agent operational."
+    text = payload.get("text") or "Hello. System online and ECOWHISPER operational."
     voice = payload.get("voice")
     backend = payload.get("backend")
     client = str(payload.get("client", "laptop")).lower()
@@ -1718,7 +1718,7 @@ def run_server(cfg: Config, auto_open: bool = True) -> None:
             pass
 
     print(f"\n=======================================================")
-    print(f"  VOICE AGENT COMMAND CENTER & REMOTE CONTROLLER")
+    print(f"  ECOWHISPER COMMAND CENTER & REMOTE CONTROLLER")
     print(f"  [Laptop Display]  {url_local}")
     print(f"  [Phone / Mobile]  {url_phone}")
     print(f"  [Security]        {'HTTPS (Phone Mic & 60 FPS WebRTC Enabled)' if cfg.ui_ssl else 'HTTP'}")

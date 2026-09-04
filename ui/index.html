@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Voice Agent — Autonomous Local AI Command Center</title>
+  <title>ECOWHISPER — Autonomous Local AI Command Center</title>
   
   <!-- Modern Typography Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +26,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
             <path d="M12 2v20M17 5v14M7 5v14M2 10v4M22 10v4"></path>
           </svg>
-          <span>Voice Agent</span>
+          <span>ECOWHISPER</span>
         </div>
       </div>
 
@@ -121,15 +121,6 @@
         <!-- Central Voice Orb (Canvas Hero) -->
         <div class="orb-wrapper" id="orbWrapper" title="Click to speak or toggle listening" tabindex="0" role="button" aria-label="Microphone Voice Orb">
           <canvas id="orbCanvas"></canvas>
-          <div class="orb-center-action">
-            <svg class="orb-center-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="23"></line>
-              <line x1="8" y1="23" x2="16" y2="23"></line>
-            </svg>
-            <span class="orb-center-label" id="orbCenterLabel">Press to Talk</span>
-          </div>
         </div>
 
         <!-- 32-Band Audio Reactive Spectrum Bar -->
@@ -171,7 +162,7 @@
         <div class="controls-stage">
           <div class="primary-voice-controls">
             <button class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold to Talk or Click to Toggle (Alt+M or Tilde ~)" title="Hold Alt+M (or Tilde ~) to Talk, or Click to Toggle">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="23"></line>
@@ -222,7 +213,7 @@
           </div>
           <div class="confirm-title-block">
             <h3 id="confirmTitle">Authorization Required</h3>
-            <p>Agent proposes executing a command on your Windows system.</p>
+            <p>ECO proposes executing a command on your Windows system.</p>
           </div>
         </div>
 
@@ -360,7 +351,7 @@
 
         <!-- Terminal Command Line -->
         <div class="console-cmd-line" style="margin-bottom: 0;">
-          <span id="toolCommandText">Waiting for agent action...</span>
+          <span id="toolCommandText">Waiting for ECO action...</span>
           <span id="toolShellTag" style="font-size: 10.5px; color: var(--text-muted); font-family: var(--font-mono);">PowerShell 7</span>
         </div>
 
@@ -465,7 +456,7 @@
 
       <!-- Floating Remote Dictation Bar (Thumb-Friendly on Phone) -->
       <div class="screen-floating-dictate-bar">
-        <button class="btn-mobile-dictate" id="btnScreenDictate" aria-label="Hold to Dictate to Laptop Voice Agent">
+        <button class="btn-mobile-dictate" id="btnScreenDictate" aria-label="Hold to Dictate to ECOWHISPER">
           <div class="dictate-icon-pulse">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -497,7 +488,7 @@
 
         <div class="mobile-connect-body">
           <p class="mobile-instructions">
-            Scan this QR code with your phone camera or open the link below on your phone to view your laptop screen at <strong>60 FPS</strong> and speak directly to your voice agent.
+            Scan this QR code with your phone camera or open the link below on your phone to view your laptop screen at <strong>60 FPS</strong> and speak directly to ECO.
           </p>
 
           <!-- QR Code Container -->
@@ -543,7 +534,7 @@
               </svg>
             </div>
             <div>
-              <h3 id="settingsTitle">Agent Settings & Diagnostics</h3>
+              <h3 id="settingsTitle">ECO Settings & Diagnostics</h3>
               <p class="settings-subtitle">Manage Ollama AI, neural voices, and safety policies</p>
             </div>
           </div>

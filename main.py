@@ -1,4 +1,4 @@
-"""Voice agent: speech -> local Ollama LLM -> speech, with shell control.
+"""ECOWHISPER: speech -> local Ollama LLM (ECO) -> speech, with shell control.
 
   python main.py                    # voice loop
   python main.py --text             # type instead of talking (no mic needed)
@@ -125,7 +125,7 @@ class VoiceAgent:
 
     def run(self) -> None:
         cfg = self.cfg
-        greeting = "Ready." if self.text_mode else "Voice agent ready. What do you need?"
+        greeting = "Ready." if self.text_mode else "ECOWHISPER ready. I'm ECO, what do you need?"
         print(f"\n{greeting}  (say/type 'exit' to quit, 'reset' to clear history)\n")
         if not self.text_mode:
             self.speaker.say(greeting)
@@ -197,7 +197,7 @@ def build_config(args: argparse.Namespace) -> Config:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="STT -> Ollama -> TTS agent with shell control")
+    p = argparse.ArgumentParser(description="ECOWHISPER: STT -> Ollama (ECO) -> TTS agent with shell control")
     p.add_argument("--ui", action="store_true", help="launch the futuristic web command center")
     p.add_argument("--port", type=int, help="port for the UI command center (default: 8000)")
     p.add_argument("--continuous", action="store_true", help="enable continuous hands-free listening")

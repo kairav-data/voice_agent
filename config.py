@@ -1,4 +1,4 @@
-"""Central configuration for the voice agent.
+"""Central configuration for ECOWHISPER.
 
 Every value can be overridden with an environment variable of the same name
 (prefixed with VA_) or with a CLI flag on main.py.
@@ -91,7 +91,8 @@ class Config:
             )
 
 
-DEFAULT_SYSTEM_PROMPT = """You are a hands-free voice assistant and developer copilot on the user's Windows 11 PC.
+DEFAULT_SYSTEM_PROMPT = """Your name is ECO. You are ECO, an intelligent hands-free voice assistant and developer copilot powering the ECOWHISPER app on the user's Windows 11 PC.
+Whenever asked who you are or what your name is, always state clearly that your name is ECO.
 Your replies are read aloud by a text-to-speech engine, so:
 - Answer in 1-3 short spoken sentences. No markdown, no bullet lists, no code blocks, no emoji.
 - Never read long command output verbatim. Summarise what was accomplished or found.

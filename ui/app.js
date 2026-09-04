@@ -1,5 +1,5 @@
 /**
- * Voice Agent Command Center — Application Controller
+ * ECOWHISPER Command Center — Application Controller
  * High-performance WebSocket event dispatcher, state manager, and UI binder.
  */
 
@@ -68,13 +68,13 @@
       if (btnToggleTheme) btnToggleTheme.setAttribute("title", "Switch to Dark Theme");
     }
     try {
-      localStorage.setItem("voice_agent_theme", theme);
+      localStorage.setItem("ecowhisper_theme", theme);
     } catch (e) {}
   }
 
   let savedTheme = "light";
   try {
-    savedTheme = localStorage.getItem("voice_agent_theme") || "light";
+    savedTheme = localStorage.getItem("ecowhisper_theme") || localStorage.getItem("voice_agent_theme") || "light";
   } catch (e) {}
   applyTheme(savedTheme);
 
@@ -298,19 +298,19 @@
     // Update Center Label & Mic Button
     const pushToTalkLabel = document.getElementById("pushToTalkLabel");
     if (newState === "listening") {
-      orbCenterLabel.textContent = "Listening";
+      if (orbCenterLabel) orbCenterLabel.textContent = "Listening";
       btnPushToTalk.classList.add("active");
       if (pushToTalkLabel) pushToTalkLabel.textContent = isMobileDevice ? "Listening... (Tap to Send)" : "Listening... (Release to Send)";
     } else if (newState === "thinking") {
-      orbCenterLabel.textContent = "Thinking";
+      if (orbCenterLabel) orbCenterLabel.textContent = "Thinking";
       btnPushToTalk.classList.remove("active");
       if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     } else if (newState === "speaking") {
-      orbCenterLabel.textContent = "Speaking";
+      if (orbCenterLabel) orbCenterLabel.textContent = "Speaking";
       btnPushToTalk.classList.remove("active");
       if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     } else {
-      orbCenterLabel.textContent = "Press to Talk";
+      if (orbCenterLabel) orbCenterLabel.textContent = "Press to Talk";
       btnPushToTalk.classList.remove("active");
       if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     }
@@ -336,7 +336,7 @@
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
-      console.log(`[ws] Connected to Voice Agent Command Center (${clientDeviceType})`);
+      console.log(`[ws] Connected to ECOWHISPER Command Center (${clientDeviceType})`);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       sendWS("identify", { client_type: clientDeviceType });
     };

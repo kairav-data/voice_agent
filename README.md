@@ -1,6 +1,6 @@
-# Voice Agent — STT → Ollama → TTS, with shell control
+# ECOWHISPER — STT → Ollama (ECO) → TTS, with shell control
 
-A hands-free assistant that listens on your mic, thinks with your local Ollama model,
+A hands-free assistant powered by ECO that listens on your mic, thinks with your local Ollama model,
 runs commands on your Windows PC when asked, and speaks the answer back.
 
 ```
