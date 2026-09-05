@@ -748,16 +748,167 @@ class AgentUIManager:
             self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
             return
 
-        # 3. Direct YouTube Video Play
-        # Handles e.g. "play ram bhajan on youtube", "paly rambhajan on youtube", "open ram bhajan on youtube", "search ram bhajan on youtube", "play lofi"
-        yt_match = re.match(
-            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:play|paly|search\s+and\s+play|search\s+for|search|stream|listen\s+to|watch|open)\s+(.+?)(?:\s+on\s+youtube|\s+in\s+youtube)?$",
+        # -------------------------------------------------------------------
+        # Fast-Path: Antigravity CLI, Antigravity IDE, & Claude CLI
+        # -------------------------------------------------------------------
+        clean_target = normalised
+        clean_target = re.sub(
+            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+|would\s+you\s+)?(?:open|launch|go\s+to|start|show\s+me|visit|run)\s+",
+            "",
+            clean_target,
+        ).strip()
+        clean_target = re.sub(
+            r"\s+(?:on\s+my\s+phone|on\s+the\s+phone|on\s+phone|on\s+my\s+mobile|on\s+mobile|on\s+my\s+laptop|on\s+the\s+laptop|on\s+laptop|on\s+my\s+pc|on\s+the\s+pc|on\s+pc|on\s+my\s+computer|on\s+computer|in\s+browser|in\s+chrome|in\s+edge|please|website|app|now)$",
+            "",
+            clean_target,
+        ).strip()
+        clean_target = re.sub(r"^(?:up\s+|the\s+)", "", clean_target).strip()
+
+        # 3. Antigravity & Claude Direct Handling
+        if clean_target in ("antigravity ide", "antigravity editor", "antigravity application"):
+            ide_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Antigravity IDE\_\Antigravity IDE.exe")
+            cmd = f'Start-Process "{ide_path}"' if os.path.isfile(ide_path) else "start agy"
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", "Launching Antigravity IDE")
+            call_res = json.loads(self.toolbox.call("run_command", {"command": cmd}))
+            reply = "Opening Antigravity IDE."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "run_command", "args": {"command": cmd}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif clean_target in ("antigravity", "antigravity cli", "agy", "agy cli"):
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", "Launching Antigravity CLI")
+            call_res = json.loads(self.toolbox.call("run_command", {"command": "start agy"}))
+            reply = "Antigravity CLI is open. What prompt would you like to provide?"
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "run_command", "args": {"command": "start agy"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif clean_target in ("claude", "claude cli", "claude code", "claude code cli", "claude command line"):
+            if any(w in normalised for w in ("website", "web", "ai", ".ai", "in browser", "in chrome", "in edge")):
+                self.set_state("thinking", {"request": text})
+                self.add_timeline("agent", "Opening Claude AI website")
+                call_res = json.loads(self.toolbox.call("open_web_app", {"app_name_or_url": "https://claude.ai"}))
+                reply = "Opening Claude."
+                item["reply"] = reply
+                item["status"] = "success"
+                item["tools"].append({"name": "open_web_app", "args": {"app_name_or_url": "https://claude.ai"}, "result": call_res})
+                self.history.append(item)
+                self.broadcast_sync("web_app_opened", {
+                    "app": "Claude AI",
+                    "url": "https://claude.ai",
+                    "source": source,
+                    "message": reply,
+                })
+                self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+                return
+
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", "Launching Claude CLI")
+            call_res = json.loads(self.toolbox.call("run_command", {"command": "start claude"}))
+            reply = "Claude CLI is open. What prompt would you like to provide?"
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "run_command", "args": {"command": "start claude"}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+        elif clean_target in ("claude website", "claude web", "claude ai", "claude.ai", "claude in browser"):
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", "Opening Claude AI website")
+            call_res = json.loads(self.toolbox.call("open_web_app", {"app_name_or_url": "https://claude.ai"}))
+            reply = "Opening Claude."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "open_web_app", "args": {"app_name_or_url": "https://claude.ai"}, "result": call_res})
+            self.history.append(item)
+            self.broadcast_sync("web_app_opened", {
+                "app": "Claude AI",
+                "url": "https://claude.ai",
+                "source": source,
+                "message": reply,
+            })
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+
+        # 4. Common Desktop Applications Fast-Path
+        desktop_apps = {
+            "notepad": ("start notepad", "Notepad"),
+            "calculator": ("start calc", "Calculator"),
+            "calc": ("start calc", "Calculator"),
+            "terminal": ("start wt", "Windows Terminal"),
+            "windows terminal": ("start wt", "Windows Terminal"),
+            "cmd": ("start cmd", "Command Prompt"),
+            "command prompt": ("start cmd", "Command Prompt"),
+            "powershell": ("start powershell", "PowerShell"),
+            "vscode": ("start code", "Visual Studio Code"),
+            "vs code": ("start code", "Visual Studio Code"),
+            "code": ("start code", "Visual Studio Code"),
+            "chrome": ("start chrome", "Google Chrome"),
+            "google chrome": ("start chrome", "Google Chrome"),
+            "edge": ("start msedge", "Microsoft Edge"),
+            "microsoft edge": ("start msedge", "Microsoft Edge"),
+            "task manager": ("start taskmgr", "Task Manager"),
+            "file explorer": ("start explorer", "File Explorer"),
+            "explorer": ("start explorer", "File Explorer"),
+            "settings": ("start ms-settings:", "Windows Settings"),
+        }
+        if clean_target in desktop_apps:
+            cmd, app_display = desktop_apps[clean_target]
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", f"Launching {app_display}")
+            call_res = json.loads(self.toolbox.call("run_command", {"command": cmd}))
+            reply = f"Opening {app_display}."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "run_command", "args": {"command": cmd}, "result": call_res})
+            self.history.append(item)
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
+
+        # 5. Direct YouTube Video Play
+        # ONLY handles:
+        # A) Explicit YouTube commands (e.g. "play X on youtube", "search X on youtube", "watch X on youtube", "open X on youtube")
+        # B) Media playback commands (e.g. "play ram bhajan", "play lofi", "stream lofi", "listen to coldplay")
+        # NEVER intercepts "open <app>" or general "search <query>"
+        target_video = None
+        # Case A: Explicit YouTube requests
+        yt_explicit_match = re.match(
+            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:play|paly|search\s+and\s+play|search\s+for|search|stream|listen\s+to|watch|open|find)\s+(.+?)(?:\s+on\s+youtube|\s+in\s+youtube|\s+on\s+yt|\s+youtube\s+video)$",
             normalised,
         )
-        if yt_match and not any(k in normalised for k in ("game", "with", "around")):
-            target_video = yt_match.group(1).strip()
+        if not yt_explicit_match:
+            yt_explicit_match = re.match(
+                r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:on\s+youtube|in\s+youtube)\s+(?:play|search\s+for|search|watch|listen\s+to)\s+(.+?)$",
+                normalised,
+            )
+        if not yt_explicit_match:
+            yt_explicit_match = re.match(
+                r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:search\s+youtube\s+for|search\s+on\s+youtube\s+for|open\s+youtube\s+and\s+play)\s+(.+?)$",
+                normalised,
+            )
+
+        if yt_explicit_match:
+            target_video = yt_explicit_match.group(1).strip()
+        else:
+            # Case B: Pure audio/video playback verbs (play, stream, listen to, watch) WITHOUT explicit youtube
+            # Must NOT be game/interaction, nor an app/tool
+            yt_play_match = re.match(
+                r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:play|paly|stream|listen\s+to|watch)\s+(.+?)$",
+                normalised,
+            )
+            if yt_play_match and not any(k in normalised for k in ("game", "with", "around", "store")):
+                candidate = yt_play_match.group(1).strip()
+                if candidate.lower() not in ("video", "the video", "music", "the music", "a song", "some music"):
+                    target_video = candidate
+
+        if target_video:
             target_video = re.sub(r"^(?:the\s+|up\s+)", "", target_video).strip()
-            # If not just asking for homepage
             if target_video.lower() not in ("youtube", "the youtube", "yt", "video", "the video", "music", "the music", ""):
                 self.set_state("thinking", {"request": text})
                 self.add_timeline("agent", f"Searching YouTube for \"{target_video}\"")
@@ -769,7 +920,7 @@ class AgentUIManager:
                 item["status"] = "success"
                 item["tools"].append({"name": "play_youtube_video", "args": {"query": target_video}, "result": call_res})
                 self.history.append(item)
-                # Broadcast video URL event to phone client so user can tap to open or view on phone!
+                # Broadcast video URL event to phone client
                 self.broadcast_sync("web_app_opened", {
                     "app": f"YouTube: {target_video}",
                     "url": vid_url,
@@ -780,24 +931,34 @@ class AgentUIManager:
                 self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
                 return
 
-        # 4. Direct Open Web App / Website / YouTube
-        # Handles e.g. "open youtube", "open youtube on my phone", "can you open youtube", "go to youtube.com", "open spotify", "launch netflix"
-        clean_target = normalised
-        # Strip common conversational opening phrases
-        clean_target = re.sub(
-            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+|would\s+you\s+)?(?:open|launch|go\s+to|start|show\s+me|visit)\s+",
-            "",
-            clean_target,
-        ).strip()
-        # Strip common location or device suffixes
-        clean_target = re.sub(
-            r"\s+(?:on\s+my\s+phone|on\s+the\s+phone|on\s+phone|on\s+my\s+mobile|on\s+mobile|on\s+my\s+laptop|on\s+the\s+laptop|on\s+laptop|on\s+my\s+pc|on\s+the\s+pc|on\s+pc|on\s+my\s+computer|on\s+computer|in\s+browser|in\s+chrome|in\s+edge|please|website|app|now)$",
-            "",
-            clean_target,
-        ).strip()
-        # Strip leading "the " or "up " e.g. "open up youtube", "open the youtube"
-        clean_target = re.sub(r"^(?:up\s+|the\s+)", "", clean_target).strip()
+        # 6. Direct Google Web Search
+        # Handles e.g. "google latest tech news", "search google for weather in tokyo", "search on google for restaurants"
+        google_match = re.match(
+            r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|just\s+)?(?:search\s+google\s+for|search\s+on\s+google\s+for|google|search\s+the\s+web\s+for)\s+(.+?)$",
+            normalised,
+        )
+        if google_match:
+            g_query = google_match.group(1).strip()
+            g_url = f"https://www.google.com/search?q={urllib.parse.quote(g_query)}"
+            self.set_state("thinking", {"request": text})
+            self.add_timeline("agent", f"Searching Google for \"{g_query}\"")
+            call_res = json.loads(self.toolbox.call("open_web_app", {"app_name_or_url": g_url}))
+            reply = f"Searching Google for {g_query}."
+            item["reply"] = reply
+            item["status"] = "success"
+            item["tools"].append({"name": "open_web_app", "args": {"app_name_or_url": g_url}, "result": call_res})
+            self.history.append(item)
+            self.broadcast_sync("web_app_opened", {
+                "app": f"Google: {g_query}",
+                "url": g_url,
+                "source": source,
+                "message": reply,
+            })
+            self._dispatch_reply_audio(reply, source=source, item=item, request_text=text)
+            return
 
+        # 7. Direct Open Web App / Website / YouTube
+        # Handles e.g. "open youtube", "open spotify", "open github", "go to reddit.com", "launch netflix"
         from tools import WEB_APPS
         app_key = clean_target.lower()
         matched_app = None

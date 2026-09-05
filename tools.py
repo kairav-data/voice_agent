@@ -158,6 +158,10 @@ WEB_APPS: dict[str, str] = {
     "google": "https://www.google.com",
     "chatgpt": "https://chatgpt.com",
     "claude": "https://claude.ai",
+    "claude ai": "https://claude.ai",
+    "claude.ai": "https://claude.ai",
+    "claude web": "https://claude.ai",
+    "claude website": "https://claude.ai",
     "reddit": "https://www.reddit.com",
     "twitter": "https://x.com",
     "x": "https://x.com",
@@ -421,8 +425,9 @@ class ToolBox:
                 "function": {
                     "name": "play_youtube_video",
                     "description": (
-                        "Search YouTube for any video, song, music, trailer, tutorial, or topic, "
-                        "and immediately open and play the top matching video in the web browser."
+                        "Play a video, song, music track, or trailer on YouTube. "
+                        "Only use when the user specifically asks to play audio or video, or specifically mentions YouTube. "
+                        "Do NOT use for general web searches, asking questions, or opening applications."
                     ),
                     "parameters": {
                         "type": "object",
