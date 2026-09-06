@@ -4,3 +4,4 @@ voices/*.onnx
 *.pem
 .auth_token
 cloudflared.exe
+.env
