@@ -49,6 +49,282 @@
   const btnOpenSettings = document.getElementById("btnOpenSettings");
   const btnCloseSettings = document.getElementById("btnCloseSettings");
 
+  // LLM Top Indicator
+  const llmIndicator = document.getElementById("llmIndicator");
+  const pillModelName = document.getElementById("pillModelName");
+  const llmStatusText = document.getElementById("llmStatusText");
+
+  let isLlmOnline = false;
+  let currentModelName = "gemma4:31b-cloud";
+  let isLlmActive = false;
+
+  function updateLlmIndicator(modelName, online, active, customText) {
+    if (modelName) {
+      currentModelName = modelName;
+      if (pillModelName) {
+        pillModelName.textContent = modelName;
+        pillModelName.title = `Active Model: ${modelName}`;
+      }
+    }
+    if (typeof online === "boolean") {
+      isLlmOnline = online;
+    }
+    if (typeof active === "boolean") {
+      isLlmActive = active;
+    }
+
+    if (!llmIndicator) return;
+
+    llmIndicator.classList.remove("state-ready", "state-active", "state-offline", "state-standby");
+
+    if (!isLlmOnline) {
+      llmIndicator.classList.add("state-offline");
+      if (llmStatusText) llmStatusText.textContent = customText || "Disconnected";
+      llmIndicator.title = `Model : ${currentModelName} | Disconnected (Ollama service unreachable)\nClick to configure in Settings`;
+      llmIndicator.setAttribute("aria-label", `Model : ${currentModelName} | Disconnected`);
+    } else if (isLlmActive) {
+      llmIndicator.classList.add("state-active");
+      if (llmStatusText) llmStatusText.textContent = customText || "Active";
+      llmIndicator.title = `Model : ${currentModelName} | Active (Generating / Reasoning)\nClick to configure in Settings`;
+      llmIndicator.setAttribute("aria-label", `Model : ${currentModelName} | Active`);
+    } else {
+      llmIndicator.classList.add("state-ready");
+      if (llmStatusText) llmStatusText.textContent = customText || "Active";
+      llmIndicator.title = `Model : ${currentModelName} | Active\nClick to configure in Settings`;
+      llmIndicator.setAttribute("aria-label", `Model : ${currentModelName} | Active`);
+    }
+  }
+
+  // ==========================================================================
+  // QUICK MODEL SWITCHER DROPDOWN (Top Center Header Pill)
+  // ==========================================================================
+  const quickModelMenu = document.getElementById("quickModelMenu");
+  const quickModelList = document.getElementById("quickModelList");
+  const btnQuickOpenSettings = document.getElementById("btnQuickOpenSettings");
+
+  let cachedModelsData = null;
+  let cachedApiKeys = {};
+
+  function closeQuickModelMenu() {
+    if (quickModelMenu) {
+      quickModelMenu.style.display = "none";
+    }
+    if (llmIndicator) {
+      llmIndicator.classList.remove("is-open");
+      llmIndicator.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function openQuickModelMenu() {
+    if (!quickModelMenu) return;
+    renderQuickModelList();
+    quickModelMenu.style.display = "flex";
+    if (llmIndicator) {
+      llmIndicator.classList.add("is-open");
+      llmIndicator.setAttribute("aria-expanded", "true");
+    }
+    // Refresh models dynamically in background to ensure latest key/status
+    authFetch("/api/models")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.categories) {
+          cachedModelsData = data;
+          if (data.api_keys) cachedApiKeys = data.api_keys;
+          if (quickModelMenu && quickModelMenu.style.display === "flex") {
+            renderQuickModelList();
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  function toggleQuickModelMenu() {
+    if (!quickModelMenu) return;
+    if (quickModelMenu.style.display === "flex") {
+      closeQuickModelMenu();
+    } else {
+      openQuickModelMenu();
+    }
+  }
+
+  function renderQuickModelList() {
+    if (!quickModelList) return;
+    quickModelList.innerHTML = "";
+
+    const categories = cachedModelsData?.categories || {
+      "Local Ollama": [
+        { name: "gemma4:31b-cloud", parameter_size: "32.7B", desc: "Default tool-calling neural model", provider: "ollama" },
+        { name: "qwen2.5:7b", parameter_size: "7B", desc: "Fast reasoning & system control", provider: "ollama" }
+      ],
+      "Google Gemini": [
+        { name: "gemini-3.6-flash", parameter_size: "Ultra Fast Flagship", desc: "Google • Latest hybrid flagship (recommended)", provider: "gemini" },
+        { name: "gemini-2.5-pro", parameter_size: "Highest Intelligence", desc: "Google • Complex multi-step reasoning & deep coding", provider: "gemini" },
+        { name: "gemini-2.5-flash", parameter_size: "Fast & Smart", desc: "Google • High speed reasoning", provider: "gemini" },
+        { name: "gemini-2.0-flash", parameter_size: "Ultra Low Latency", desc: "Google • Sub-second real-time latency", provider: "gemini" },
+        { name: "gemini-1.5-pro", parameter_size: "2M Context", desc: "Google • 2M token context window", provider: "gemini" },
+        { name: "gemini-1.5-flash", parameter_size: "Fast & Light", desc: "Google • General purpose multi-modal", provider: "gemini" }
+      ],
+      "OpenAI ChatGPT": [
+        { name: "gpt-4o", parameter_size: "Omni Flagship", desc: "OpenAI • High intelligence flagship", provider: "openai" },
+        { name: "gpt-4o-mini", parameter_size: "Fast & Light", desc: "OpenAI • Fast, cost-efficient model", provider: "openai" },
+        { name: "gpt-4-turbo", parameter_size: "Turbo 128k", desc: "OpenAI • High-capability Turbo model", provider: "openai" },
+        { name: "o3-mini", parameter_size: "Reasoning", desc: "OpenAI • Fast STEM & coding reasoning", provider: "openai" }
+      ],
+      "Anthropic Claude": [
+        { name: "claude-3-7-sonnet-latest", parameter_size: "Hybrid Flagship", desc: "Anthropic • State-of-the-art coding & agentic", provider: "anthropic" },
+        { name: "claude-3-5-sonnet-latest", parameter_size: "Sonnet 3.5", desc: "Anthropic • Powerful agentic reasoning", provider: "anthropic" },
+        { name: "claude-3-5-haiku-latest", parameter_size: "Ultra Fast", desc: "Anthropic • High speed & concise", provider: "anthropic" }
+      ]
+    };
+
+    const catHeaders = {
+      "Local Ollama": "🖥️ Local Ollama",
+      "Google Gemini": "🌐 Google Gemini",
+      "OpenAI ChatGPT": "🤖 OpenAI ChatGPT",
+      "Anthropic Claude": "⚡ Anthropic Claude",
+    };
+
+    for (const [catName, models] of Object.entries(categories)) {
+      if (!models || models.length === 0) continue;
+
+      const groupTitle = document.createElement("div");
+      groupTitle.className = "quick-model-group-title";
+      groupTitle.textContent = catHeaders[catName] || catName;
+      quickModelList.appendChild(groupTitle);
+
+      models.forEach((m) => {
+        const item = document.createElement("div");
+        const isSelected = (m.name === currentModelName);
+        item.className = "quick-model-item" + (isSelected ? " is-selected" : "");
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", isSelected ? "true" : "false");
+
+        const provider = m.provider || "ollama";
+        let hasKey = true;
+        if (provider === "gemini") hasKey = !!cachedApiKeys.has_gemini_key;
+        else if (provider === "openai") hasKey = !!cachedApiKeys.has_openai_key;
+        else if (provider === "anthropic") hasKey = !!cachedApiKeys.has_anthropic_key;
+
+        const badgeText = m.parameter_size || "Neural";
+
+        item.innerHTML = `
+          <div class="quick-model-info">
+            <div class="quick-model-name-row">
+              <span class="quick-model-name">${escapeHtml(m.name)}</span>
+              <span class="quick-model-badge">${escapeHtml(badgeText)}</span>
+            </div>
+            <span class="quick-model-desc">${escapeHtml(m.desc || m.category || "")}</span>
+          </div>
+          <div class="quick-model-action-wrap">
+            ${(!hasKey) ? `<button type="button" class="quick-model-key-badge" title="API key required for ${m.name}">Key Needed</button>` : ""}
+            <svg class="quick-model-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        `;
+
+        item.addEventListener("click", async (e) => {
+          e.stopPropagation();
+
+          // If click was on setup key badge or cloud provider lacks key, prompt settings
+          if (e.target.classList.contains("quick-model-key-badge") || !hasKey) {
+            closeQuickModelMenu();
+            if (btnOpenSettings) btnOpenSettings.click();
+            setTimeout(() => {
+              const targetInputId = provider === "gemini" ? "settingGeminiKey" : (provider === "openai" ? "settingOpenAiKey" : "settingAnthropicKey");
+              const targetInput = document.getElementById(targetInputId);
+              if (targetInput) {
+                targetInput.focus();
+                targetInput.scrollIntoView({ behavior: "smooth", block: "center" });
+                targetInput.closest(".api-key-group")?.classList.add("highlight-needed");
+              }
+            }, 180);
+            return;
+          }
+
+          if (m.name === currentModelName) {
+            closeQuickModelMenu();
+            return;
+          }
+
+          // Switch model immediately
+          closeQuickModelMenu();
+          await switchActiveModel(m.name, hasKey);
+        });
+
+        quickModelList.appendChild(item);
+      });
+    }
+  }
+
+  async function switchActiveModel(modelName, isOnline = true) {
+    updateLlmIndicator(modelName, isOnline, false);
+    try {
+      const resp = await authFetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelName }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const conf = data.config || {};
+        const llmInfo = conf.llm || conf.ollama || {};
+        const finalOnline = (typeof llmInfo.online === "boolean") ? llmInfo.online : isOnline;
+        updateLlmIndicator(modelName, finalOnline, false);
+
+        // Sync with native select and custom select in Settings
+        const settingModel = document.getElementById("settingModel");
+        if (settingModel) {
+          settingModel.value = modelName;
+          EcoSelect.sync(settingModel);
+        }
+      }
+    } catch (e) {
+      console.error("[model switch] Error:", e);
+    }
+  }
+
+  // Hook up top pill click to toggle quick model menu
+  if (llmIndicator) {
+    llmIndicator.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleQuickModelMenu();
+    });
+    llmIndicator.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleQuickModelMenu();
+      } else if (e.key === "Escape") {
+        closeQuickModelMenu();
+      }
+    });
+  }
+
+  // Quick settings button in the model menu header
+  if (btnQuickOpenSettings) {
+    btnQuickOpenSettings.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeQuickModelMenu();
+      if (btnOpenSettings) btnOpenSettings.click();
+    });
+  }
+
+  // Close quick model menu when clicking anywhere else
+  document.addEventListener("click", (e) => {
+    if (quickModelMenu && quickModelMenu.style.display === "flex") {
+      if (!quickModelMenu.contains(e.target) && !llmIndicator.contains(e.target)) {
+        closeQuickModelMenu();
+      }
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeQuickModelMenu();
+    }
+  });
+
   // Theme Management (Light / Luxury White default, with Dark Mode toggle)
   const btnToggleTheme = document.getElementById("btnToggleTheme");
   const themeSunIcon = btnToggleTheme ? btnToggleTheme.querySelector(".theme-icon-sun") : null;
@@ -383,6 +659,13 @@
     } else {
       btnStopInterrupt.style.display = "none";
     }
+
+    // Update Top LLM Indicator activity
+    if (newState === "thinking" || newState === "tool" || newState === "executing") {
+      updateLlmIndicator(null, null, true, "Active");
+    } else {
+      updateLlmIndicator(null, null, false, "Active");
+    }
   }
 
   // ========================================================================
@@ -498,6 +781,12 @@
 
     } else if (type === "tunnel_status") {
       if (msg.tunnel) updateTunnelUI(msg.tunnel);
+
+    } else if (type === "settings_updated") {
+      updateSystemUI(msg.system || msg);
+      if (msg.ollama?.current_model) {
+        updateLlmIndicator(msg.ollama.current_model, msg.ollama.online, currentState === "thinking");
+      }
 
     } else if (type === "state_changed") {
       updateState(msg.state, msg);
@@ -644,6 +933,15 @@
     const pillDev = document.getElementById("pillDeviceName");
     if (pillDev) {
       pillDev.textContent = clientDeviceType === "phone" ? "Phone Audio" : "Laptop Audio";
+    }
+
+    // Synchronize Top LLM Indicator with system status
+    const llmStatus = sys.llm || sys.ollama;
+    if (llmStatus) {
+      const isOnline = !!llmStatus.online;
+      const modelName = llmStatus.current_model || currentModelName;
+      const isActive = currentState === "thinking" || currentState === "tool" || currentState === "executing";
+      updateLlmIndicator(modelName, isOnline, isActive);
     }
 
     updateContinuousUI(sys.continuous_listening);
@@ -1163,100 +1461,768 @@
     timelineContent.scrollTop = timelineContent.scrollHeight;
   }
 
+  // ==========================================================================
+  // ESCAPE HTML UTILITY
+  // ==========================================================================
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // ==========================================================================
+  // PREMIUM CUSTOM DROPDOWN ENGINE (EcoSelect)
+  // ==========================================================================
+  const EcoSelect = (function () {
+    const instances = new Map();
+    let activeWrap = null;
+
+    const ICONS_BY_ID = {
+      settingModel: "🧠",
+      settingTtsBackend: "⚙️",
+      settingVoice: "🎙️",
+      settingSpeakerTarget: "🔊",
+      settingMicDevice: "🎙️",
+      settingContinuousListening: "🎧",
+      settingConfirmMode: "🛡️",
+      settingShell: "💻",
+    };
+
+    function closeAll() {
+      if (activeWrap) {
+        activeWrap.classList.remove("is-open", "open-upward");
+        const trigger = activeWrap.querySelector(".eco-select-trigger");
+        if (trigger) trigger.setAttribute("aria-expanded", "false");
+        const menu = activeWrap.querySelector(".eco-select-menu");
+        if (menu) menu.style.display = "none";
+        activeWrap = null;
+      }
+    }
+
+    function positionMenu(wrap, menu) {
+      const rect = wrap.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+        wrap.classList.add("open-upward");
+      } else {
+        wrap.classList.remove("open-upward");
+      }
+    }
+
+    function initSelect(wrap) {
+      if (!wrap) return;
+      const nativeSelect = wrap.querySelector(".form-select");
+      if (!nativeSelect) return;
+
+      wrap.classList.add("eco-enhanced");
+
+      // Remove existing custom elements if rebuilding
+      const oldTrigger = wrap.querySelector(".eco-select-trigger");
+      if (oldTrigger) oldTrigger.remove();
+      const oldMenu = wrap.querySelector(".eco-select-menu");
+      if (oldMenu) oldMenu.remove();
+
+      // Determine field icon
+      const fieldIcon = wrap.dataset.fieldIcon || ICONS_BY_ID[nativeSelect.id] || "⚙️";
+
+      // 1. Create Trigger Button
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "eco-select-trigger";
+      trigger.setAttribute("aria-haspopup", "listbox");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.setAttribute("aria-label", nativeSelect.getAttribute("aria-label") || nativeSelect.id);
+
+      trigger.innerHTML = `
+        <div class="eco-trigger-content">
+          <span class="eco-trigger-icon">${fieldIcon}</span>
+          <span class="eco-trigger-label">--</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="eco-trigger-badge" style="display: none;"></span>
+          <svg class="eco-trigger-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+      `;
+
+      // 2. Create Floating Menu
+      const menu = document.createElement("div");
+      menu.className = "eco-select-menu";
+      menu.setAttribute("role", "listbox");
+      menu.style.display = "none";
+
+      // Options list container
+      const optionsWrap = document.createElement("div");
+      optionsWrap.className = "eco-menu-options custom-scroll";
+
+      // Quick filter search if options > 4
+      let searchInput = null;
+      if (nativeSelect.options.length > 4) {
+        const searchBox = document.createElement("div");
+        searchBox.className = "eco-menu-search";
+        searchBox.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" class="eco-search-input" placeholder="Filter options..." autocomplete="off">
+        `;
+        searchInput = searchBox.querySelector("input");
+        menu.appendChild(searchBox);
+
+        searchInput.addEventListener("input", (e) => {
+          const q = e.target.value.toLowerCase().trim();
+          let visibleCount = 0;
+          const items = optionsWrap.querySelectorAll(".eco-option-item");
+          items.forEach((item) => {
+            const text = item.textContent.toLowerCase();
+            if (!q || text.includes(q)) {
+              item.style.display = "flex";
+              visibleCount++;
+            } else {
+              item.style.display = "none";
+            }
+          });
+          let emptyNotice = optionsWrap.querySelector(".eco-empty-options");
+          if (visibleCount === 0) {
+            if (!emptyNotice) {
+              emptyNotice = document.createElement("div");
+              emptyNotice.className = "eco-empty-options";
+              emptyNotice.textContent = "No matching options found";
+              optionsWrap.appendChild(emptyNotice);
+            }
+          } else if (emptyNotice) {
+            emptyNotice.remove();
+          }
+        });
+
+        searchBox.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            closeAll();
+            trigger.focus();
+            e.stopPropagation();
+          }
+        });
+      }
+
+      menu.appendChild(optionsWrap);
+
+      // Populate Option Items from nativeSelect.options
+      function populateCustomOptions() {
+        optionsWrap.innerHTML = "";
+        const selectedVal = nativeSelect.value;
+        let lastGroupName = null;
+
+        Array.from(nativeSelect.options).forEach((opt, idx) => {
+          const groupEl = opt.parentElement && opt.parentElement.tagName === "OPTGROUP" ? opt.parentElement : null;
+          const groupName = groupEl ? groupEl.label : (opt.dataset.group || null);
+
+          if (groupName && groupName !== lastGroupName) {
+            lastGroupName = groupName;
+            const header = document.createElement("div");
+            header.className = "eco-optgroup-header";
+            header.textContent = groupName;
+            optionsWrap.appendChild(header);
+          }
+
+          const item = document.createElement("div");
+          item.className = "eco-option-item" + (opt.value === selectedVal ? " is-selected" : "");
+          item.setAttribute("role", "option");
+          item.dataset.value = opt.value;
+          item.dataset.index = idx;
+
+          const title = opt.textContent || opt.value;
+          const badge = opt.dataset.badge || "";
+          const desc = opt.dataset.desc || "";
+
+          item.innerHTML = `
+            <div class="eco-option-left">
+              <span class="eco-option-title">${escapeHtml(title)}</span>
+              ${desc ? `<span class="eco-option-desc">${escapeHtml(desc)}</span>` : ""}
+            </div>
+            <div class="eco-option-right">
+              ${badge ? `<span class="eco-option-badge">${escapeHtml(badge)}</span>` : ""}
+              <svg class="eco-option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          `;
+
+          item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            selectOption(opt.value);
+            closeAll();
+            trigger.focus();
+          });
+
+          optionsWrap.appendChild(item);
+        });
+
+        updateTriggerDisplay();
+      }
+
+      function updateTriggerDisplay() {
+        const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex] || nativeSelect.options[0];
+        const labelEl = trigger.querySelector(".eco-trigger-label");
+        const badgeEl = trigger.querySelector(".eco-trigger-badge");
+
+        if (selectedOpt) {
+          if (labelEl) labelEl.textContent = selectedOpt.textContent || selectedOpt.value;
+          const badge = selectedOpt.dataset.badge;
+          if (badgeEl) {
+            if (badge) {
+              badgeEl.textContent = badge;
+              badgeEl.style.display = "inline-block";
+            } else {
+              badgeEl.style.display = "none";
+            }
+          }
+        } else {
+          if (labelEl) labelEl.textContent = "--";
+          if (badgeEl) badgeEl.style.display = "none";
+        }
+
+        // Update selected class in menu
+        optionsWrap.querySelectorAll(".eco-option-item").forEach((it) => {
+          const isSelected = selectedOpt && it.dataset.value === selectedOpt.value;
+          it.classList.toggle("is-selected", isSelected);
+          it.setAttribute("aria-selected", isSelected ? "true" : "false");
+        });
+      }
+
+      function selectOption(val) {
+        if (nativeSelect.value !== val) {
+          nativeSelect.value = val;
+          nativeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+          nativeSelect.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        updateTriggerDisplay();
+      }
+
+      // Open / Close Toggle
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = wrap.classList.contains("is-open");
+        if (isOpen) {
+          closeAll();
+        } else {
+          closeAll();
+          positionMenu(wrap, menu);
+          wrap.classList.add("is-open");
+          trigger.setAttribute("aria-expanded", "true");
+          menu.style.display = "flex";
+          activeWrap = wrap;
+
+          if (searchInput) {
+            searchInput.value = "";
+            optionsWrap.querySelectorAll(".eco-option-item").forEach((it) => (it.style.display = "flex"));
+            const emptyNotice = optionsWrap.querySelector(".eco-empty-options");
+            if (emptyNotice) emptyNotice.remove();
+            setTimeout(() => searchInput.focus(), 20);
+          }
+        }
+      });
+
+      // Keyboard navigation on trigger
+      trigger.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (!wrap.classList.contains("is-open")) {
+            trigger.click();
+          }
+        } else if (e.key === "Escape") {
+          closeAll();
+        }
+      });
+
+      // Listen for programmatic change on native select
+      nativeSelect.addEventListener("change", () => {
+        updateTriggerDisplay();
+      });
+
+      wrap.appendChild(trigger);
+      wrap.appendChild(menu);
+
+      populateCustomOptions();
+
+      // Mutation observer to re-populate if nativeSelect options change dynamically
+      const observer = new MutationObserver(() => {
+        populateCustomOptions();
+      });
+      observer.observe(nativeSelect, { childList: true, subtree: true });
+
+      instances.set(nativeSelect.id || nativeSelect, {
+        rebuild: populateCustomOptions,
+        sync: updateTriggerDisplay,
+      });
+    }
+
+    // Global outside click listener
+    document.addEventListener("click", (e) => {
+      if (activeWrap && !activeWrap.contains(e.target)) {
+        closeAll();
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && activeWrap) {
+        closeAll();
+      }
+    });
+
+    function initAll() {
+      document.querySelectorAll(".select-wrap").forEach((wrap) => {
+        initSelect(wrap);
+      });
+    }
+
+    function rebuild(selectOrId) {
+      const el = typeof selectOrId === "string" ? document.getElementById(selectOrId) : selectOrId;
+      if (!el) return;
+      const inst = instances.get(el.id || el);
+      if (inst) {
+        inst.rebuild();
+      } else {
+        const wrap = el.closest(".select-wrap");
+        if (wrap) initSelect(wrap);
+      }
+    }
+
+    function sync(selectOrId) {
+      const el = typeof selectOrId === "string" ? document.getElementById(selectOrId) : selectOrId;
+      if (!el) return;
+      const inst = instances.get(el.id || el);
+      if (inst) {
+        inst.sync();
+      } else {
+        const wrap = el.closest(".select-wrap");
+        if (wrap) initSelect(wrap);
+      }
+    }
+
+    function syncAll() {
+      instances.forEach((inst) => inst.sync());
+    }
+
+    return {
+      initAll,
+      initSelect,
+      rebuild,
+      sync,
+      syncAll,
+      closeAll,
+    };
+  })();
+
+  window.EcoSelect = EcoSelect;
+
+  // Initialize EcoSelect on existing DOM selects immediately
+  EcoSelect.initAll();
+
+  // Voice catalogue state cache
+  let voiceCatalogue = {
+    piper: [
+      { id: "en_US-hfc_female-medium.onnx", name: "Piper: en_US-hfc_female", gender: "Female", desc: "Fast & clear female neural voice", file: "en_US-hfc_female-medium.onnx" },
+      { id: "en_US-ryan-high.onnx", name: "Piper: en_US-ryan-high", gender: "Male", desc: "High-fidelity natural male voice", file: "en_US-ryan-high.onnx" }
+    ],
+    edge: [
+      { id: "en-US-AvaNeural", name: "Ava", desc: "US Female • Expressive & Natural", gender: "Female", locale: "en-US" },
+      { id: "en-US-AndrewNeural", name: "Andrew", desc: "US Male • Confident & Crisp", gender: "Male", locale: "en-US" },
+      { id: "en-US-EmmaNeural", name: "Emma", desc: "US Female • Friendly & Clear", gender: "Female", locale: "en-US" },
+      { id: "en-US-BrianNeural", name: "Brian", desc: "US Male • Professional Deep", gender: "Male", locale: "en-US" },
+      { id: "en-US-JennyNeural", name: "Jenny", desc: "US Female • Assistant Default", gender: "Female", locale: "en-US" },
+      { id: "en-US-GuyNeural", name: "Guy", desc: "US Male • Conversational", gender: "Male", locale: "en-US" },
+      { id: "en-GB-SoniaNeural", name: "Sonia", desc: "UK Female • British RP Accent", gender: "Female", locale: "en-GB" },
+      { id: "en-GB-RyanNeural", name: "Ryan", desc: "UK Male • British Natural", gender: "Male", locale: "en-GB" },
+      { id: "en-IN-NeerjaNeural", name: "Neerja", desc: "Indian Female • Expressive", gender: "Female", locale: "en-IN" },
+      { id: "en-IN-PrabhatNeural", name: "Prabhat", desc: "Indian Male • Clear Tone", gender: "Male", locale: "en-IN" },
+      { id: "en-AU-NatashaNeural", name: "Natasha", desc: "Australian Female • Warm", gender: "Female", locale: "en-AU" }
+    ],
+    sapi: [],
+    current_voice: "",
+  };
+
+  function populateVoiceOptions(selectedBackend, targetVoice) {
+    const selectVoice = document.getElementById("settingVoice");
+    if (!selectVoice) return;
+    const currentVal = targetVoice !== undefined ? targetVoice : selectVoice.value;
+    selectVoice.innerHTML = "";
+
+    // Default Voice option
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default System Voice";
+    defaultOpt.dataset.badge = "Auto";
+    defaultOpt.dataset.desc = "System configured voice";
+    if (!currentVal) defaultOpt.selected = true;
+    selectVoice.appendChild(defaultOpt);
+
+    const backend = selectedBackend || document.getElementById("settingTtsBackend")?.value || "auto";
+
+    // Piper voices
+    if (backend === "piper" || backend === "auto") {
+      (voiceCatalogue.piper || []).forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v.id || v.file || v;
+        const cleanName = (v.name || v.id || v).replace(".onnx", "").replace("Piper: ", "");
+        opt.textContent = `Piper: ${cleanName}`;
+        opt.dataset.badge = "Offline Neural";
+        opt.dataset.desc = v.desc || `${v.gender || "Neural"} • Local ONNX model`;
+        opt.dataset.engine = "piper";
+        if (currentVal && (opt.value === currentVal || currentVal.includes(opt.value))) {
+          opt.selected = true;
+        }
+        selectVoice.appendChild(opt);
+      });
+    }
+
+    // Edge voices
+    if (backend === "edge" || backend === "auto") {
+      (voiceCatalogue.edge || []).forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v.id;
+        opt.textContent = `Edge: ${v.name || v.id}`;
+        opt.dataset.badge = "Online Natural";
+        opt.dataset.desc = v.desc || `${v.gender || "Neural"} • ${v.locale || "en-US"}`;
+        opt.dataset.engine = "edge";
+        if (currentVal && opt.value === currentVal) {
+          opt.selected = true;
+        }
+        selectVoice.appendChild(opt);
+      });
+    }
+
+    // SAPI voices
+    if (backend === "sapi" || backend === "auto") {
+      (voiceCatalogue.sapi || []).forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v.id || v;
+        opt.textContent = `SAPI: ${v.name || v.id || v}`;
+        opt.dataset.badge = "System";
+        opt.dataset.desc = "Windows SAPI voice";
+        opt.dataset.engine = "sapi";
+        if (currentVal && opt.value === currentVal) {
+          opt.selected = true;
+        }
+        selectVoice.appendChild(opt);
+      });
+    }
+
+    EcoSelect.rebuild(selectVoice);
+  }
+
+  // Hook backend change to dynamically re-populate voice options
+  const selectBackendEl = document.getElementById("settingTtsBackend");
+  if (selectBackendEl) {
+    selectBackendEl.addEventListener("change", () => {
+      populateVoiceOptions(selectBackendEl.value);
+    });
+  }
+
   // Settings Modal & Hydration
   btnOpenSettings.addEventListener("click", async () => {
     settingsModal.classList.add("active");
+    EcoSelect.syncAll();
     loadSettingsData();
   });
-  btnCloseSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
+  btnCloseSettings.addEventListener("click", () => {
+    settingsModal.classList.remove("active");
+    EcoSelect.closeAll();
+  });
+
+  // Close settings when clicking backdrop overlay
+  settingsModal.addEventListener("click", (e) => {
+    if (e.target === settingsModal) {
+      settingsModal.classList.remove("active");
+      EcoSelect.closeAll();
+    }
+  });
 
   async function loadSettingsData() {
+    const timedFetch = (url, timeoutMs = 3500) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      return authFetch(url, { signal: controller.signal })
+        .then((r) => {
+          clearTimeout(id);
+          return r.ok ? r.json() : {};
+        })
+        .catch(() => ({}));
+    };
+
     try {
       const [resModels, resVoices, resStatus, resDevices] = await Promise.all([
-        authFetch("/api/models").then((r) => r.json()).catch(() => ({})),
-        authFetch("/api/voices").then((r) => r.json()).catch(() => ({})),
-        authFetch("/api/status").then((r) => r.json()).catch(() => ({})),
-        authFetch("/api/devices").then((r) => r.json()).catch(() => ({})),
+        timedFetch("/api/models"),
+        timedFetch("/api/voices"),
+        timedFetch("/api/status"),
+        timedFetch("/api/devices"),
       ]);
 
-      // Populate models
+      cachedModelsData = resModels;
+      cachedApiKeys = resModels.api_keys || {};
+      renderQuickModelList();
+
+      // Sync Top LLM Indicator on initial load
+      const llmInit = resStatus.llm || resStatus.ollama || {};
+      const initialModel = llmInit.current_model || resModels.current || "gemma4:31b-cloud";
+      const isInitialOnline = (typeof llmInit.online === "boolean") ? llmInit.online : (resModels.models && resModels.models.length > 0);
+      updateLlmIndicator(initialModel, isInitialOnline, false);
+
+      // 1. Populate LLM models (grouped by category: Local Ollama, Google Gemini, OpenAI ChatGPT, Anthropic Claude)
       const selectModel = document.getElementById("settingModel");
-      selectModel.innerHTML = "";
-      (resModels.models || []).forEach((m) => {
-        const opt = document.createElement("option");
-        opt.value = m.name;
-        opt.textContent = `${m.name} (${m.parameter_size || "local"})`;
-        if (m.name === resStatus.ollama?.current_model) opt.selected = true;
-        selectModel.appendChild(opt);
-      });
+      const currentModelName = llmInit.current_model || resModels.current || "gemma4:31b-cloud";
+      const apiKeysState = resModels.api_keys || {};
 
-      // Populate voice engines and voices
-      const selectBackend = document.getElementById("settingTtsBackend");
-      selectBackend.value = resStatus.tts?.backend || "auto";
+      if (selectModel) {
+        selectModel.innerHTML = "";
 
-      const selectVoice = document.getElementById("settingVoice");
-      selectVoice.innerHTML = "";
-      const defaultOpt = document.createElement("option");
-      defaultOpt.value = "";
-      defaultOpt.textContent = "Default Voice";
-      selectVoice.appendChild(defaultOpt);
+        if (resModels.categories && Object.keys(resModels.categories).length > 0) {
+          const categoryDisplayNames = {
+            "Local Ollama": "🖥️ Local Ollama",
+            "Google Gemini": "🌐 Google Gemini",
+            "OpenAI ChatGPT": "🤖 OpenAI ChatGPT",
+            "Anthropic Claude": "⚡ Anthropic Claude",
+          };
 
-      (resStatus.tts?.piper_voices || []).forEach((v) => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = `Piper: ${v.replace(".onnx", "")}`;
-        if (resStatus.tts?.voice && v.includes(resStatus.tts.voice)) opt.selected = true;
-        selectVoice.appendChild(opt);
-      });
+          for (const [catName, catModels] of Object.entries(resModels.categories)) {
+            if (!catModels || catModels.length === 0) continue;
+            const optgroup = document.createElement("optgroup");
+            optgroup.label = categoryDisplayNames[catName] || catName;
 
-      ["en-US-AvaNeural", "en-US-AndrewNeural", "en-IN-NeerjaNeural", "en-IN-PrabhatNeural"].forEach((ev) => {
-        const opt = document.createElement("option");
-        opt.value = ev;
-        opt.textContent = `Edge: ${ev}`;
-        if (resStatus.tts?.voice === ev) opt.selected = true;
-        selectVoice.appendChild(opt);
-      });
-
-      const selectTarget = document.getElementById("settingSpeakerTarget");
-      if (selectTarget) selectTarget.value = resStatus.tts?.speaker_target || "auto";
-
-      document.getElementById("settingRate").value = resStatus.tts?.rate || 185;
-      document.getElementById("rateValueDisplay").textContent = `${resStatus.tts?.rate || 185} wpm`;
-
-      // Populate microphone input devices
-      const selectMic = document.getElementById("settingMicDevice");
-      if (selectMic) {
-        selectMic.innerHTML = "";
-        const autoOpt = document.createElement("option");
-        autoOpt.value = "-1";
-        const activeLabel = resDevices.active_name ? ` (Active: ${resDevices.active_name})` : "";
-        autoOpt.textContent = `Auto-Detect Bluetooth / Default${activeLabel}`;
-        selectMic.appendChild(autoOpt);
-
-        (resDevices.devices || []).forEach((dev) => {
-          const opt = document.createElement("option");
-          opt.value = dev.index;
-          const apiTag = dev.api ? ` [${dev.api}]` : "";
-          opt.textContent = `${dev.name}${apiTag} (${dev.channels} in, ${Math.round(dev.samplerate)}Hz)`;
-          if (resDevices.current === dev.index) {
-            opt.selected = true;
+            catModels.forEach((m) => {
+              const opt = document.createElement("option");
+              opt.value = m.name;
+              opt.textContent = m.name;
+              const badgeTag = m.parameter_size || (m.size ? `${(m.size / (1024 * 1024 * 1024)).toFixed(1)}GB` : "Cloud");
+              opt.dataset.badge = badgeTag;
+              opt.dataset.desc = m.desc || `${m.category} • ${badgeTag}`;
+              opt.dataset.provider = m.provider || "ollama";
+              if (m.name === currentModelName) opt.selected = true;
+              optgroup.appendChild(opt);
+            });
+            selectModel.appendChild(optgroup);
           }
-          selectMic.appendChild(opt);
-        });
+        } else if (resModels.models && resModels.models.length > 0) {
+          resModels.models.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m.name;
+            const sizeTag = m.parameter_size || (m.size ? `${(m.size / (1024 * 1024 * 1024)).toFixed(1)}GB` : "Model");
+            opt.textContent = `${m.name}`;
+            opt.dataset.badge = sizeTag;
+            opt.dataset.desc = m.desc || `Model • ${sizeTag}`;
+            if (m.name === currentModelName) opt.selected = true;
+            selectModel.appendChild(opt);
+          });
+        }
+        EcoSelect.rebuild(selectModel);
+      }
 
-        if (resDevices.current === null || resDevices.current === undefined) {
-          autoOpt.selected = true;
+      // Populate & wire Cloud Provider API Key fields
+      const geminiInput = document.getElementById("settingGeminiKey");
+      const openaiInput = document.getElementById("settingOpenAiKey");
+      const anthropicInput = document.getElementById("settingAnthropicKey");
+
+      const badgeGemini = document.getElementById("badgeGeminiKey");
+      const badgeOpenAi = document.getElementById("badgeOpenAiKey");
+      const badgeAnthropic = document.getElementById("badgeAnthropicKey");
+
+      function updateKeyBadges() {
+        if (badgeGemini) {
+          const hasVal = geminiInput && geminiInput.value.trim().length > 0;
+          if (apiKeysState.has_gemini_key || hasVal) {
+            badgeGemini.textContent = "✓ Configured";
+            badgeGemini.className = "api-key-badge is-set";
+          } else {
+            badgeGemini.textContent = "Not Set";
+            badgeGemini.className = "api-key-badge is-missing";
+          }
+        }
+        if (badgeOpenAi) {
+          const hasVal = openaiInput && openaiInput.value.trim().length > 0;
+          if (apiKeysState.has_openai_key || hasVal) {
+            badgeOpenAi.textContent = "✓ Configured";
+            badgeOpenAi.className = "api-key-badge is-set";
+          } else {
+            badgeOpenAi.textContent = "Not Set";
+            badgeOpenAi.className = "api-key-badge is-missing";
+          }
+        }
+        if (badgeAnthropic) {
+          const hasVal = anthropicInput && anthropicInput.value.trim().length > 0;
+          if (apiKeysState.has_anthropic_key || hasVal) {
+            badgeAnthropic.textContent = "✓ Configured";
+            badgeAnthropic.className = "api-key-badge is-set";
+          } else {
+            badgeAnthropic.textContent = "Not Set";
+            badgeAnthropic.className = "api-key-badge is-missing";
+          }
         }
       }
 
-      // Populate continuous listening dropdown
+      if (geminiInput && apiKeysState.gemini_masked) {
+        geminiInput.placeholder = `Configured (${apiKeysState.gemini_masked}) — Enter to change`;
+      }
+      if (openaiInput && apiKeysState.openai_masked) {
+        openaiInput.placeholder = `Configured (${apiKeysState.openai_masked}) — Enter to change`;
+      }
+      if (anthropicInput && apiKeysState.anthropic_masked) {
+        anthropicInput.placeholder = `Configured (${apiKeysState.anthropic_masked}) — Enter to change`;
+      }
+      updateKeyBadges();
+
+      if (geminiInput) geminiInput.addEventListener("input", updateKeyBadges);
+      if (openaiInput) openaiInput.addEventListener("input", updateKeyBadges);
+      if (anthropicInput) anthropicInput.addEventListener("input", updateKeyBadges);
+
+      // Visibility toggle buttons (👁️)
+      document.querySelectorAll(".btn-toggle-key").forEach((btn) => {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          const targetId = btn.dataset.target;
+          const inp = document.getElementById(targetId);
+          if (!inp) return;
+          if (inp.type === "password") {
+            inp.type = "text";
+            btn.textContent = "🙈";
+            btn.title = "Hide key";
+          } else {
+            inp.type = "password";
+            btn.textContent = "👁️";
+            btn.title = "Show key";
+          }
+        };
+      });
+
+      // Highlight corresponding API key if a cloud model is chosen without key
+      function highlightKeyForModel(mName) {
+        const m = (mName || "").toLowerCase();
+        const gGemini = document.getElementById("groupGeminiKey");
+        const gOpenAi = document.getElementById("groupOpenAiKey");
+        const gAnthropic = document.getElementById("groupAnthropicKey");
+
+        if (gGemini) gGemini.classList.remove("highlight-needed");
+        if (gOpenAi) gOpenAi.classList.remove("highlight-needed");
+        if (gAnthropic) gAnthropic.classList.remove("highlight-needed");
+
+        if (m.startsWith("gemini") && (!apiKeysState.has_gemini_key && (!geminiInput || !geminiInput.value.trim()))) {
+          if (gGemini) gGemini.classList.add("highlight-needed");
+        } else if ((m.startsWith("gpt") || m.startsWith("o1") || m.startsWith("o3")) && (!apiKeysState.has_openai_key && (!openaiInput || !openaiInput.value.trim()))) {
+          if (gOpenAi) gOpenAi.classList.add("highlight-needed");
+        } else if (m.startsWith("claude") && (!apiKeysState.has_anthropic_key && (!anthropicInput || !anthropicInput.value.trim()))) {
+          if (gAnthropic) gAnthropic.classList.add("highlight-needed");
+        }
+      }
+
+      if (selectModel) {
+        selectModel.addEventListener("change", (e) => {
+          highlightKeyForModel(e.target.value);
+        });
+        highlightKeyForModel(selectModel.value);
+      }
+
+      // 2. Populate TTS backend
+      const backendSelect = document.getElementById("settingTtsBackend");
+      if (backendSelect) {
+        const currBackend = resStatus.tts?.backend || resVoices.current_backend || "auto";
+        backendSelect.value = currBackend;
+        EcoSelect.sync(backendSelect);
+      }
+
+      // 3. Update voice catalog & voices
+      if (resVoices.piper || resVoices.edge || resVoices.sapi) {
+        if (resVoices.piper && resVoices.piper.length > 0) voiceCatalogue.piper = resVoices.piper;
+        if (resVoices.edge && resVoices.edge.length > 0) voiceCatalogue.edge = resVoices.edge;
+        if (resVoices.sapi && resVoices.sapi.length > 0) voiceCatalogue.sapi = resVoices.sapi;
+        voiceCatalogue.current_voice = resVoices.current_voice || resStatus.tts?.voice || "";
+      } else if (resStatus.tts?.piper_voices) {
+        voiceCatalogue.piper = resStatus.tts.piper_voices.map((f) => ({
+          id: f,
+          name: f.replace(".onnx", ""),
+          gender: "Neural",
+          desc: "Local Piper voice",
+        }));
+      }
+
+      const activeVoice = resStatus.tts?.voice || voiceCatalogue.current_voice || "";
+      populateVoiceOptions(backendSelect ? backendSelect.value : "auto", activeVoice);
+
+      // 4. Speaker target
+      const selectTarget = document.getElementById("settingSpeakerTarget");
+      if (selectTarget) {
+        if (resStatus.tts?.speaker_target) {
+          selectTarget.value = resStatus.tts.speaker_target;
+        }
+        EcoSelect.sync(selectTarget);
+      }
+
+      // 5. Speaking rate
+      if (resStatus.tts?.rate) {
+        const rateInput = document.getElementById("settingRate");
+        if (rateInput) rateInput.value = resStatus.tts.rate;
+        const rateDisplay = document.getElementById("rateValueDisplay");
+        if (rateDisplay) rateDisplay.textContent = `${resStatus.tts.rate} wpm`;
+      }
+
+      // 6. Microphone input devices
+      const selectMic = document.getElementById("settingMicDevice");
+      if (selectMic) {
+        if (resDevices.devices && resDevices.devices.length > 0) {
+          selectMic.innerHTML = "";
+          const autoOpt = document.createElement("option");
+          autoOpt.value = "-1";
+          const activeLabel = resDevices.active_name ? ` (${resDevices.active_name})` : "";
+          autoOpt.textContent = `Auto-Detect Bluetooth / Default${activeLabel}`;
+          autoOpt.dataset.badge = "Auto";
+          autoOpt.dataset.desc = `System default audio input${activeLabel}`;
+          selectMic.appendChild(autoOpt);
+
+          resDevices.devices.forEach((dev) => {
+            const opt = document.createElement("option");
+            opt.value = dev.index;
+            const apiTag = dev.api ? ` [${dev.api}]` : "";
+            opt.textContent = `${dev.name}${apiTag}`;
+            opt.dataset.badge = `${Math.round(dev.samplerate || 44100)}Hz`;
+            opt.dataset.desc = `${dev.channels || 1} in channels • ${dev.api || "Audio API"}`;
+            if (resDevices.current === dev.index) {
+              opt.selected = true;
+            }
+            selectMic.appendChild(opt);
+          });
+
+          if (resDevices.current === null || resDevices.current === undefined) {
+            autoOpt.selected = true;
+          }
+          EcoSelect.rebuild(selectMic);
+        } else {
+          EcoSelect.sync(selectMic);
+        }
+      }
+
+      // 7. Continuous listening
       const selectContinuous = document.getElementById("settingContinuousListening");
       if (selectContinuous) {
         selectContinuous.value = resStatus.continuous_listening ? "true" : "false";
+        EcoSelect.sync(selectContinuous);
       }
 
-      document.getElementById("settingConfirmMode").value = resStatus.safety?.confirm_mode || "terminal";
-      document.getElementById("settingShell").value = resStatus.safety?.default_shell || "powershell";
+      // 8. Confirmation gate & shell
+      const selectConfirm = document.getElementById("settingConfirmMode");
+      if (selectConfirm) {
+        if (resStatus.safety?.confirm_mode) selectConfirm.value = resStatus.safety.confirm_mode;
+        EcoSelect.sync(selectConfirm);
+      }
+
+      const selectShell = document.getElementById("settingShell");
+      if (selectShell) {
+        if (resStatus.safety?.default_shell) selectShell.value = resStatus.safety.default_shell;
+        EcoSelect.sync(selectShell);
+      }
     } catch (e) {
       console.error("[settings] Failed to load settings:", e);
     }
@@ -1269,35 +2235,83 @@
   document.getElementById("btnSaveSettings").addEventListener("click", async () => {
     const micVal = document.getElementById("settingMicDevice")?.value;
     const continuousVal = document.getElementById("settingContinuousListening")?.value;
+    const chosenModel = document.getElementById("settingModel")?.value || "";
+
+    const geminiKeyVal = document.getElementById("settingGeminiKey")?.value.trim() || "";
+    const openaiKeyVal = document.getElementById("settingOpenAiKey")?.value.trim() || "";
+    const anthropicKeyVal = document.getElementById("settingAnthropicKey")?.value.trim() || "";
 
     const payload = {
-      model: document.getElementById("settingModel").value,
+      model: chosenModel,
       tts_backend: document.getElementById("settingTtsBackend").value,
       tts_voice: document.getElementById("settingVoice").value,
       tts_rate: parseInt(document.getElementById("settingRate").value, 10),
       tts_speaker_target: document.getElementById("settingSpeakerTarget")?.value || "auto",
       confirm_mode: document.getElementById("settingConfirmMode").value,
       default_shell: document.getElementById("settingShell").value,
-      input_device: (micVal !== undefined && micVal !== null && parseInt(micVal, 10) >= 0) ? parseInt(micVal, 10) : null,
+      input_device: micVal !== undefined && micVal !== null && parseInt(micVal, 10) >= 0 ? parseInt(micVal, 10) : null,
       continuous_listening: continuousVal === "true",
     };
 
+    if (geminiKeyVal) payload.gemini_api_key = geminiKeyVal;
+    if (openaiKeyVal) payload.openai_api_key = openaiKeyVal;
+    if (anthropicKeyVal) payload.anthropic_api_key = anthropicKeyVal;
+
+    const saveBtn = document.getElementById("btnSaveSettings");
+    const origHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span>⏳ Saving...</span>`;
+
     try {
-      await authFetch("/api/settings", {
+      const resp = await authFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const data = resp.ok ? await resp.json() : {};
+      const updatedConf = data.config || {};
+      const llmConf = updatedConf.llm || updatedConf.ollama || {};
+
+      if (payload.gemini_api_key) cachedApiKeys.has_gemini_key = true;
+      if (payload.openai_api_key) cachedApiKeys.has_openai_key = true;
+      if (payload.anthropic_api_key) cachedApiKeys.has_anthropic_key = true;
+
+      if (payload.model) {
+        const isOnline = (typeof llmConf.online === "boolean") ? llmConf.online : true;
+        updateLlmIndicator(payload.model, isOnline, false);
+      }
       settingsModal.classList.remove("active");
+      EcoSelect.closeAll();
+      loadSettingsData().catch(() => {});
     } catch (e) {
       alert(`Could not save settings: ${e}`);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = origHTML;
     }
   });
+
+  // Periodic background health check to keep LLM online/offline status synchronized
+  setInterval(async () => {
+    try {
+      const res = await timedFetch("/api/status");
+      if (res) {
+        const llmInfo = res.llm || res.ollama;
+        if (llmInfo) {
+          const mName = llmInfo.current_model || currentModelName;
+          const online = !!llmInfo.online;
+          const isActive = currentState === "thinking" || currentState === "tool" || currentState === "executing";
+          updateLlmIndicator(mName, online, isActive);
+        }
+      }
+    } catch (e) {}
+  }, 25000);
 
   const btnCancelSettings = document.getElementById("btnCancelSettings");
   if (btnCancelSettings) {
     btnCancelSettings.addEventListener("click", () => {
       settingsModal.classList.remove("active");
+      EcoSelect.closeAll();
     });
   }
 
@@ -2769,6 +3783,9 @@
       attributeFilter: ["title", "data-eco-tooltip"],
     });
   })();
+
+  // Prime model and settings data on initial page load
+  loadSettingsData();
 
   // Start WebSocket
   connectWebSocket();

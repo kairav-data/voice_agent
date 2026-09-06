@@ -30,6 +30,32 @@
         </div>
       </div>
 
+      <!-- Top Center LLM Indicator & Quick Model Switcher Dropdown -->
+      <div class="header-center-zone">
+        <div class="llm-indicator-pill state-ready" id="llmIndicator" role="button" tabindex="0" title="Click to switch AI model" aria-label="Model: gemma4:31b-cloud | Active" aria-haspopup="true" aria-expanded="false">
+          <span class="llm-label">Model :</span>
+          <span class="llm-model-name" id="pillModelName">gemma4:31b-cloud</span>
+          <span class="llm-sep">|</span>
+          <span class="llm-status-text" id="llmStatusText">Active</span>
+          <svg class="llm-dropdown-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+
+        <!-- Quick Model Switcher Dropdown Menu -->
+        <div class="quick-model-menu" id="quickModelMenu" style="display: none;">
+          <div class="quick-model-header">
+            <span class="quick-model-title">Select AI Model</span>
+            <button type="button" class="btn-quick-settings" id="btnQuickOpenSettings" title="Configure API Keys & Settings">
+              <span>⚙️ API Keys</span>
+            </button>
+          </div>
+          <div class="quick-model-list custom-scroll" id="quickModelList">
+            <!-- Dynamically populated from /api/models -->
+          </div>
+        </div>
+      </div>
+
       <!-- Header Action Controls -->
       <div class="header-actions">
         <button class="icon-btn" id="btnToggleContinuous" title="Continuous Listening: Paused" aria-label="Toggle Continuous Listening">
@@ -663,17 +689,90 @@
         <!-- Settings Scroll Body -->
         <div class="settings-body custom-scroll">
           
-          <!-- Section 1: Local Intelligence -->
+          <!-- Section 1: AI Model & Cloud Providers -->
           <div class="settings-section-card">
             <div class="settings-section-header">
               <span class="section-icon">🧠</span>
-              <span class="section-title">Local Intelligence & Ollama</span>
+              <span class="section-title">AI Intelligence & Model Providers</span>
             </div>
             <div class="form-group">
-              <label class="form-label" for="settingModel">Ollama LLM Model</label>
-              <span class="form-sublabel">Local tool-calling neural model running via Ollama</span>
-              <div class="select-wrap">
-                <select class="form-select" id="settingModel"></select>
+              <label class="form-label" for="settingModel">Active LLM Model</label>
+              <span class="form-sublabel">Choose a local Ollama model or cloud model (Google Gemini, OpenAI ChatGPT, Anthropic Claude)</span>
+              <div class="select-wrap" data-field-icon="🧠">
+                <select class="form-select" id="settingModel">
+                  <optgroup label="🖥️ Local Ollama">
+                    <option value="gemma4:31b-cloud" data-badge="32.7B • Local" data-desc="Default tool-calling neural model" selected>gemma4:31b-cloud</option>
+                  </optgroup>
+                  <optgroup label="🌐 Google Gemini">
+                    <option value="gemini-3.6-flash" data-badge="Ultra Fast Flagship" data-desc="Google • Latest hybrid flagship (recommended)">gemini-3.6-flash</option>
+                    <option value="gemini-2.5-pro" data-badge="Highest Intelligence" data-desc="Google • Complex multi-step reasoning & deep coding">gemini-2.5-pro</option>
+                    <option value="gemini-2.5-flash" data-badge="Fast & Smart" data-desc="Google • High speed reasoning">gemini-2.5-flash</option>
+                    <option value="gemini-2.0-flash" data-badge="Ultra Low Latency" data-desc="Google • Sub-second real-time latency">gemini-2.0-flash</option>
+                    <option value="gemini-1.5-pro" data-badge="2M Context" data-desc="Google • 2M token context window">gemini-1.5-pro</option>
+                    <option value="gemini-1.5-flash" data-badge="Fast & Light" data-desc="Google • General purpose multi-modal">gemini-1.5-flash</option>
+                  </optgroup>
+                  <optgroup label="🤖 OpenAI ChatGPT">
+                    <option value="gpt-4o" data-badge="Omni Flagship" data-desc="OpenAI • High intelligence omni flagship">gpt-4o</option>
+                    <option value="gpt-4o-mini" data-badge="Fast & Light" data-desc="OpenAI • Fast, cost-efficient model">gpt-4o-mini</option>
+                    <option value="gpt-4-turbo" data-badge="Turbo 128k" data-desc="OpenAI • High-capability Turbo model">gpt-4-turbo</option>
+                    <option value="o3-mini" data-badge="Reasoning" data-desc="OpenAI • Fast STEM & coding reasoning">o3-mini</option>
+                  </optgroup>
+                  <optgroup label="⚡ Anthropic Claude">
+                    <option value="claude-3-7-sonnet-latest" data-badge="Hybrid Flagship" data-desc="Anthropic • State-of-the-art coding & agentic">claude-3-7-sonnet-latest</option>
+                    <option value="claude-3-5-sonnet-latest" data-badge="Sonnet 3.5" data-desc="Anthropic • Powerful agentic reasoning">claude-3-5-sonnet-latest</option>
+                    <option value="claude-3-5-haiku-latest" data-badge="Ultra Fast" data-desc="Anthropic • High speed & concise">claude-3-5-haiku-latest</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <!-- API Keys Section -->
+            <div class="api-keys-card" id="apiKeysCard">
+              <div class="api-keys-header">
+                <div class="api-keys-header-title">
+                  <span class="api-keys-icon">🔑</span>
+                  <span>Cloud Provider API Keys</span>
+                </div>
+                <span class="api-keys-subtitle">Saved locally to project .env</span>
+              </div>
+
+              <!-- Google Gemini Key -->
+              <div class="form-group api-key-group" id="groupGeminiKey">
+                <div class="api-key-label-row">
+                  <label class="form-label" for="settingGeminiKey">Google Gemini API Key</label>
+                  <span class="api-key-badge" id="badgeGeminiKey">Not Set</span>
+                </div>
+                <div class="api-key-input-wrap">
+                  <input type="password" class="form-input api-key-input" id="settingGeminiKey" placeholder="AIzaSy... (from Google AI Studio)" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="btn-toggle-key" data-target="settingGeminiKey" title="Toggle visibility" aria-label="Toggle key visibility">👁️</button>
+                </div>
+                <span class="api-key-hint">Required for Gemini models. Free keys at aistudio.google.com</span>
+              </div>
+
+              <!-- OpenAI Key -->
+              <div class="form-group api-key-group" id="groupOpenAiKey">
+                <div class="api-key-label-row">
+                  <label class="form-label" for="settingOpenAiKey">OpenAI API Key</label>
+                  <span class="api-key-badge" id="badgeOpenAiKey">Not Set</span>
+                </div>
+                <div class="api-key-input-wrap">
+                  <input type="password" class="form-input api-key-input" id="settingOpenAiKey" placeholder="sk-... (from platform.openai.com)" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="btn-toggle-key" data-target="settingOpenAiKey" title="Toggle visibility" aria-label="Toggle key visibility">👁️</button>
+                </div>
+                <span class="api-key-hint">Required for GPT-4o, o3-mini, and ChatGPT models</span>
+              </div>
+
+              <!-- Anthropic Claude Key -->
+              <div class="form-group api-key-group" id="groupAnthropicKey">
+                <div class="api-key-label-row">
+                  <label class="form-label" for="settingAnthropicKey">Anthropic Claude API Key</label>
+                  <span class="api-key-badge" id="badgeAnthropicKey">Not Set</span>
+                </div>
+                <div class="api-key-input-wrap">
+                  <input type="password" class="form-input api-key-input" id="settingAnthropicKey" placeholder="sk-ant-... (from console.anthropic.com)" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="btn-toggle-key" data-target="settingAnthropicKey" title="Toggle visibility" aria-label="Toggle key visibility">👁️</button>
+                </div>
+                <span class="api-key-hint">Required for Claude 3.7 / 3.5 Sonnet and Haiku models</span>
               </div>
             </div>
           </div>
@@ -687,12 +786,12 @@
             <div class="form-group">
               <label class="form-label" for="settingTtsBackend">Voice Engine Backend</label>
               <span class="form-sublabel">Piper (offline neural), Edge (online natural), or SAPI (robotic)</span>
-              <div class="select-wrap">
+              <div class="select-wrap" data-field-icon="⚙️">
                 <select class="form-select" id="settingTtsBackend">
-                  <option value="auto">Auto (Piper → Edge → SAPI)</option>
-                  <option value="piper">Piper (Offline Neural)</option>
-                  <option value="edge">Microsoft Edge (Online Natural)</option>
-                  <option value="sapi">Windows SAPI (Built-in)</option>
+                  <option value="auto" data-badge="Recommended" data-desc="Intelligent fallback (Piper → Edge → SAPI)" selected>Auto: Piper → Edge → SAPI</option>
+                  <option value="piper" data-badge="Offline Neural" data-desc="High speed, private ONNX synthesis on CPU">Piper (Offline Neural)</option>
+                  <option value="edge" data-badge="Online Natural" data-desc="Microsoft natural cloud speech models">Microsoft Edge (Online Natural)</option>
+                  <option value="sapi" data-badge="System Built-in" data-desc="Zero latency Windows local SAPI voices">Windows SAPI (Built-in)</option>
                 </select>
               </div>
             </div>
@@ -707,8 +806,16 @@
                   <span>▶ Test Voice</span>
                 </button>
               </div>
-              <div class="select-wrap">
-                <select class="form-select" id="settingVoice"></select>
+              <div class="select-wrap" data-field-icon="🎙️">
+                <select class="form-select" id="settingVoice">
+                  <option value="" data-badge="Neural" data-desc="System default neural voice" selected>Default System Voice</option>
+                  <option value="en_US-hfc_female-medium.onnx" data-badge="Offline Neural" data-desc="Piper • Fast & clear female voice" data-engine="piper">Piper: en_US-hfc_female</option>
+                  <option value="en_US-ryan-high.onnx" data-badge="Offline Neural" data-desc="Piper • High-fidelity natural male voice" data-engine="piper">Piper: en_US-ryan-high</option>
+                  <option value="en-US-AvaNeural" data-badge="Online Natural" data-desc="Edge • Expressive US female voice" data-engine="edge">Edge: Ava (US Female)</option>
+                  <option value="en-US-AndrewNeural" data-badge="Online Natural" data-desc="Edge • Crisp & confident US male voice" data-engine="edge">Edge: Andrew (US Male)</option>
+                  <option value="en-IN-NeerjaNeural" data-badge="Online Natural" data-desc="Edge • Expressive Indian female accent" data-engine="edge">Edge: Neerja (Indian Female)</option>
+                  <option value="en-IN-PrabhatNeural" data-badge="Online Natural" data-desc="Edge • Clear Indian male tone" data-engine="edge">Edge: Prabhat (Indian Male)</option>
+                </select>
               </div>
             </div>
 
@@ -730,12 +837,12 @@
             <div class="form-group">
               <label class="form-label" for="settingSpeakerTarget">Speaker Output Destination</label>
               <span class="form-sublabel">Controls where the spoken response plays</span>
-              <div class="select-wrap">
+              <div class="select-wrap" data-field-icon="🔊">
                 <select class="form-select" id="settingSpeakerTarget">
-                  <option value="auto">Auto (Originating Device: Phone responds on phone, Laptop on laptop)</option>
-                  <option value="phone">Phone Speaker Only</option>
-                  <option value="laptop">Laptop Speaker Only</option>
-                  <option value="both">Both Phone & Laptop Speakers</option>
+                  <option value="auto" data-badge="Smart Route" data-desc="Phone responds on phone, laptop on laptop" selected>Auto (Originating Device Destination)</option>
+                  <option value="phone" data-badge="Mobile Only" data-desc="Stream spoken reply directly to mobile speaker">Phone Speaker Only</option>
+                  <option value="laptop" data-badge="Host Only" data-desc="Play voice through laptop soundcard & speakers">Laptop Speaker Only</option>
+                  <option value="both" data-badge="Broadcast" data-desc="Synchronous audio out to phone & laptop">Both Phone & Laptop Speakers</option>
                 </select>
               </div>
             </div>
@@ -758,8 +865,10 @@
                   <span>🎙️ Test Mic</span>
                 </button>
               </div>
-              <div class="select-wrap">
-                <select class="form-select" id="settingMicDevice"></select>
+              <div class="select-wrap" data-field-icon="🎙️">
+                <select class="form-select" id="settingMicDevice">
+                  <option value="-1" data-badge="Auto" data-desc="System default audio input device" selected>Auto-Detect Bluetooth / Default Microphone</option>
+                </select>
               </div>
               <!-- Live Mic Meter -->
               <div id="micTestBarWrap" class="mic-test-bar-wrap">
@@ -776,10 +885,10 @@
             <div class="form-group">
               <label class="form-label" for="settingContinuousListening">Hands-Free Continuous Listening</label>
               <span class="form-sublabel">Automatically listen for your voice continuously without needing to tap the mic</span>
-              <div class="select-wrap">
+              <div class="select-wrap" data-field-icon="🎧">
                 <select class="form-select" id="settingContinuousListening">
-                  <option value="false">Push-to-Talk / Click to Speak (Manual)</option>
-                  <option value="true">Continuous Hands-Free Listening (Always On)</option>
+                  <option value="false" data-badge="Manual" data-desc="Hold / tap mic to speak • Saves battery and privacy" selected>Push-to-Talk / Click to Speak</option>
+                  <option value="true" data-badge="Always On" data-desc="Hands-free continuous listening via Silero VAD">Continuous Hands-Free Listening</option>
                 </select>
               </div>
             </div>
@@ -794,12 +903,12 @@
             <div class="form-group">
               <label class="form-label" for="settingConfirmMode">Safety Confirmation Gate</label>
               <span class="form-sublabel">Policy applied before running risky commands</span>
-              <div class="select-wrap">
+              <div class="select-wrap" data-field-icon="🛡️">
                 <select class="form-select" id="settingConfirmMode">
-                  <option value="terminal">Interactive Modal & Terminal Prompt (Recommended)</option>
-                  <option value="voice">Spoken Voice Confirmation (Say Yes/No)</option>
-                  <option value="auto">Auto-Approve (Unrestricted Execution)</option>
-                  <option value="deny">Always Deny (Read-only Guardrail)</option>
+                  <option value="terminal" data-badge="Recommended" data-desc="Interactive popup authorization before execution" selected>Interactive Modal & Terminal Prompt</option>
+                  <option value="voice" data-badge="Hands-free" data-desc="Spoken verbal confirmation prompt ('Yes/No')">Spoken Voice Confirmation</option>
+                  <option value="auto" data-badge="Power User" data-desc="Execute commands immediately without asking">Auto-Approve (Unrestricted Execution)</option>
+                  <option value="deny" data-badge="Strict Guard" data-desc="Deny all execution • Diagnostic & info mode only">Always Deny (Read-only Guardrail)</option>
                 </select>
               </div>
             </div>
@@ -807,10 +916,10 @@
             <div class="form-group">
               <label class="form-label" for="settingShell">Default Execution Shell</label>
               <span class="form-sublabel">Terminal environment for local commands</span>
-              <div class="select-wrap">
+              <div class="select-wrap" data-field-icon="💻">
                 <select class="form-select" id="settingShell">
-                  <option value="powershell">PowerShell 7</option>
-                  <option value="cmd">Command Prompt (cmd.exe)</option>
+                  <option value="powershell" data-badge="Modern" data-desc="PowerShell 7 console environment" selected>PowerShell 7</option>
+                  <option value="cmd" data-badge="Legacy" data-desc="Classic Windows Command Prompt interpreter">Command Prompt (cmd.exe)</option>
                 </select>
               </div>
             </div>

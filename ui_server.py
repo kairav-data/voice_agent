@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from audio import Recorder, Speaker, list_voices
-from config import Config
+from config import Config, save_api_keys_to_env
 from llm import OllamaAgent
 from stt import Transcriber
 from tools import ToolBox, assess_command_risk, classify
@@ -1241,6 +1241,23 @@ class AgentUIManager:
         except Exception as e:
             ollama_msg = f"Offline ({e})"
 
+        # Multi-provider active check
+        provider = self.cfg.provider
+        is_active = False
+        provider_msg = "Unknown"
+        if provider == "ollama":
+            is_active = ollama_ok
+            provider_msg = ollama_msg
+        elif provider == "gemini":
+            is_active = bool(self.cfg.gemini_api_key)
+            provider_msg = "Connected" if is_active else "Missing Google API Key"
+        elif provider == "openai":
+            is_active = bool(self.cfg.openai_api_key)
+            provider_msg = "Connected" if is_active else "Missing OpenAI API Key"
+        elif provider == "anthropic":
+            is_active = bool(self.cfg.anthropic_api_key)
+            provider_msg = "Connected" if is_active else "Missing Anthropic API Key"
+
         # Voices
         voices_found = []
         voices_dir = self.cfg.piper_dir or os.path.join(BASE_DIR, "voices")
@@ -1248,15 +1265,25 @@ class AgentUIManager:
             voices_found = [f for f in os.listdir(voices_dir) if f.endswith(".onnx")]
 
         return {
-            "status": "ready" if ollama_ok else "warning",
+            "status": "ready" if is_active else "warning",
             "state": self.state,
-            "local_ai": True,
+            "local_ai": provider == "ollama",
+            "provider": provider,
+            "llm": {
+                "provider": provider,
+                "current_model": self.cfg.model,
+                "online": is_active,
+                "message": provider_msg,
+                "has_gemini_key": bool(self.cfg.gemini_api_key),
+                "has_openai_key": bool(self.cfg.openai_api_key),
+                "has_anthropic_key": bool(self.cfg.anthropic_api_key),
+            },
             "ollama": {
-                "online": ollama_ok,
+                "online": is_active,
                 "host": self.cfg.ollama_host,
                 "current_model": self.cfg.model,
                 "available_models": installed_models,
-                "message": ollama_msg,
+                "message": provider_msg,
             },
             "whisper": {
                 "model": self.cfg.whisper_model,
@@ -1327,6 +1354,11 @@ def check_request_auth(request: Request) -> None:
 # --------------------------------------------------------------------------- #
 # REST Endpoints
 # --------------------------------------------------------------------------- #
+@app.get("/favicon.ico")
+def get_favicon() -> Response:
+    return Response(status_code=204)
+
+
 @app.get("/api/status")
 def get_status() -> JSONResponse:
     if manager is None:
@@ -1338,26 +1370,153 @@ def get_status() -> JSONResponse:
 def get_models() -> JSONResponse:
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
-    models = []
+
+    # 1. Local Ollama models
+    ollama_models = []
     try:
-        r = requests.get(f"{manager.cfg.ollama_host.rstrip('/')}/api/tags", timeout=2.0)
+        r = requests.get(f"{manager.cfg.ollama_host.rstrip('/')}/api/tags", timeout=1.8)
         if r.status_code == 200:
             for item in r.json().get("models", []):
-                models.append({
+                p_size = item.get("details", {}).get("parameter_size", "")
+                ollama_models.append({
                     "name": item.get("name", ""),
+                    "provider": "ollama",
+                    "category": "Local Ollama",
                     "size": item.get("size", 0),
-                    "parameter_size": item.get("details", {}).get("parameter_size", ""),
+                    "parameter_size": p_size or "Local",
+                    "desc": f"Local Ollama • {p_size or 'Local Neural'}",
                 })
     except Exception as e:
-        print(f"[ui_server] Could not fetch models: {e}")
-    return JSONResponse(content={"models": models, "current": manager.cfg.model})
+        print(f"[ui_server] Could not fetch Ollama models: {e}")
+
+    if not ollama_models:
+        ollama_models = [
+            {"name": "gemma4:31b-cloud", "provider": "ollama", "category": "Local Ollama", "size": 0, "parameter_size": "32.7B", "desc": "Local Ollama • Default tool-calling neural model"},
+            {"name": "qwen2.5:7b", "provider": "ollama", "category": "Local Ollama", "size": 0, "parameter_size": "7B", "desc": "Local Ollama • Fast reasoning & system control"},
+            {"name": "llama3.1:8b", "provider": "ollama", "category": "Local Ollama", "size": 0, "parameter_size": "8B", "desc": "Local Ollama • Meta Llama 3.1 local agent"},
+        ]
+
+    # 2. Google Gemini models
+    gemini_models = [
+        {"name": "gemini-3.6-flash", "provider": "gemini", "category": "Google Gemini", "size": 0, "parameter_size": "Ultra Fast Flagship", "desc": "Google • Latest hybrid flagship (recommended)"},
+        {"name": "gemini-2.5-pro", "provider": "gemini", "category": "Google Gemini", "size": 0, "parameter_size": "Highest Intelligence", "desc": "Google • Complex multi-step reasoning & deep coding"},
+        {"name": "gemini-2.5-flash", "provider": "gemini", "category": "Google Gemini", "size": 0, "parameter_size": "Fast & Smart", "desc": "Google • High speed reasoning"},
+        {"name": "gemini-2.0-flash", "provider": "gemini", "category": "Google Gemini", "size": 0, "parameter_size": "Ultra Low Latency", "desc": "Google • Sub-second real-time latency"},
+        {"name": "gemini-1.5-pro", "provider": "gemini", "category": "Google Gemini", "size": 0, "parameter_size": "2M Context", "desc": "Google • 2M token context window"},
+        {"name": "gemini-1.5-flash", "provider": "gemini", "category": "Google Gemini", "size": 0, "parameter_size": "Fast & Light", "desc": "Google • General purpose multi-modal"},
+    ]
+
+    # 3. OpenAI ChatGPT models
+    openai_models = [
+        {"name": "gpt-4o", "provider": "openai", "category": "OpenAI ChatGPT", "size": 0, "parameter_size": "Omni Flagship", "desc": "OpenAI • High intelligence omni flagship"},
+        {"name": "gpt-4o-mini", "provider": "openai", "category": "OpenAI ChatGPT", "size": 0, "parameter_size": "Fast & Light", "desc": "OpenAI • Fast, cost-efficient model"},
+        {"name": "gpt-4-turbo", "provider": "openai", "category": "OpenAI ChatGPT", "size": 0, "parameter_size": "Turbo 128k", "desc": "OpenAI • High-capability Turbo model"},
+        {"name": "o3-mini", "provider": "openai", "category": "OpenAI ChatGPT", "size": 0, "parameter_size": "Reasoning", "desc": "OpenAI • Fast STEM and coding reasoning"},
+        {"name": "o1", "provider": "openai", "category": "OpenAI ChatGPT", "size": 0, "parameter_size": "Deep Reasoning", "desc": "OpenAI • Advanced deliberate reasoning"},
+    ]
+
+    # 4. Anthropic Claude models
+    anthropic_models = [
+        {"name": "claude-3-7-sonnet-latest", "provider": "anthropic", "category": "Anthropic Claude", "size": 0, "parameter_size": "Hybrid Flagship", "desc": "Anthropic • State-of-the-art coding & agentic"},
+        {"name": "claude-3-5-sonnet-latest", "provider": "anthropic", "category": "Anthropic Claude", "size": 0, "parameter_size": "Sonnet 3.5", "desc": "Anthropic • Powerful agentic reasoning"},
+        {"name": "claude-3-5-haiku-latest", "provider": "anthropic", "category": "Anthropic Claude", "size": 0, "parameter_size": "Ultra Fast", "desc": "Anthropic • High speed & concise"},
+        {"name": "claude-3-opus-latest", "provider": "anthropic", "category": "Anthropic Claude", "size": 0, "parameter_size": "Deep Thinker", "desc": "Anthropic • Complex reasoning & analysis"},
+    ]
+
+    curr_model = getattr(manager.cfg, "model", "gemma4:31b-cloud")
+    all_models = ollama_models + gemini_models + openai_models + anthropic_models
+
+    # Mask keys for security
+    def mask_key(k: str) -> str:
+        if not k:
+            return ""
+        if len(k) > 8:
+            return f"{k[:4]}...{k[-4:]}"
+        return "••••••••"
+
+    return JSONResponse(content={
+        "models": all_models,
+        "categories": {
+            "Local Ollama": ollama_models,
+            "Google Gemini": gemini_models,
+            "OpenAI ChatGPT": openai_models,
+            "Anthropic Claude": anthropic_models,
+        },
+        "current": curr_model,
+        "provider": manager.cfg.provider,
+        "api_keys": {
+            "has_gemini_key": bool(manager.cfg.gemini_api_key),
+            "has_openai_key": bool(manager.cfg.openai_api_key),
+            "has_anthropic_key": bool(manager.cfg.anthropic_api_key),
+            "gemini_masked": mask_key(manager.cfg.gemini_api_key),
+            "openai_masked": mask_key(manager.cfg.openai_api_key),
+            "anthropic_masked": mask_key(manager.cfg.anthropic_api_key),
+        },
+    })
 
 
 @app.get("/api/voices")
 def get_voices() -> JSONResponse:
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
-    return JSONResponse(content={"voices": list_voices(manager.cfg)})
+
+    # 1. Local Piper voices (.onnx in voices folder)
+    piper_voices = []
+    voices_dir = manager.cfg.piper_dir or os.path.join(BASE_DIR, "voices")
+    if os.path.isdir(voices_dir):
+        for f in sorted(os.listdir(voices_dir)):
+            if f.endswith(".onnx"):
+                base_name = f.replace(".onnx", "")
+                gender = "Female" if "female" in base_name.lower() else ("Male" if "ryan" in base_name.lower() or "male" in base_name.lower() else "Neural")
+                piper_voices.append({
+                    "id": f,
+                    "name": f"Piper: {base_name}",
+                    "gender": gender,
+                    "type": "Offline Neural",
+                    "file": f,
+                })
+
+    # 2. Microsoft Edge Neural voices (instant, non-blocking curated catalogue)
+    edge_voices = [
+        {"id": "en-US-AvaNeural", "name": "Ava", "desc": "US Female • Expressive & Natural", "gender": "Female", "locale": "en-US"},
+        {"id": "en-US-AndrewNeural", "name": "Andrew", "desc": "US Male • Confident & Crisp", "gender": "Male", "locale": "en-US"},
+        {"id": "en-US-EmmaNeural", "name": "Emma", "desc": "US Female • Friendly & Clear", "gender": "Female", "locale": "en-US"},
+        {"id": "en-US-BrianNeural", "name": "Brian", "desc": "US Male • Professional Deep", "gender": "Male", "locale": "en-US"},
+        {"id": "en-US-JennyNeural", "name": "Jenny", "desc": "US Female • Assistant Default", "gender": "Female", "locale": "en-US"},
+        {"id": "en-US-GuyNeural", "name": "Guy", "desc": "US Male • Conversational", "gender": "Male", "locale": "en-US"},
+        {"id": "en-GB-SoniaNeural", "name": "Sonia", "desc": "UK Female • British RP Accent", "gender": "Female", "locale": "en-GB"},
+        {"id": "en-GB-RyanNeural", "name": "Ryan", "desc": "UK Male • British Natural", "gender": "Male", "locale": "en-GB"},
+        {"id": "en-IN-NeerjaNeural", "name": "Neerja", "desc": "Indian Female • Expressive", "gender": "Female", "locale": "en-IN"},
+        {"id": "en-IN-PrabhatNeural", "name": "Prabhat", "desc": "Indian Male • Clear Tone", "gender": "Male", "locale": "en-IN"},
+        {"id": "en-AU-NatashaNeural", "name": "Natasha", "desc": "Australian Female • Warm", "gender": "Female", "locale": "en-AU"},
+    ]
+
+    # 3. Windows SAPI voices
+    sapi_voices = []
+    try:
+        import comtypes
+        import comtypes.client
+        comtypes.CoInitialize()
+        tokens = comtypes.client.CreateObject("SAPI.SpVoice").GetVoices()
+        for i in range(tokens.Count):
+            desc = tokens.Item(i).GetDescription()
+            sapi_voices.append({
+                "id": desc,
+                "name": desc,
+                "desc": "Windows System Voice",
+                "gender": "System",
+                "locale": "Local",
+            })
+    except Exception:
+        pass
+
+    return JSONResponse(content={
+        "piper": piper_voices,
+        "edge": edge_voices,
+        "sapi": sapi_voices,
+        "current_voice": manager.cfg.tts_voice or manager.cfg.edge_voice,
+        "current_backend": manager.cfg.tts_backend,
+    })
 
 
 @app.get("/api/devices")
@@ -1472,15 +1631,71 @@ def post_settings(request: Request, payload: Dict[str, Any]) -> JSONResponse:
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
     cfg = manager.cfg
-    if "model" in payload:
-        cfg.model = str(payload["model"])
+
+    model_changed = False
+    if "model" in payload and payload["model"]:
+        new_model = str(payload["model"]).strip()
+        if new_model != cfg.model:
+            cfg.model = new_model
+            model_changed = True
+            if manager.agent:
+                manager.agent.reset()
+
+    keys_changed = False
+    if "gemini_api_key" in payload:
+        val = str(payload["gemini_api_key"]).strip()
+        if val and not (val.startswith("...") or val == "••••••••"):
+            if val != cfg.gemini_api_key:
+                cfg.gemini_api_key = val
+                keys_changed = True
+        elif val == "":
+            if cfg.gemini_api_key != "":
+                cfg.gemini_api_key = ""
+                keys_changed = True
+
+    if "openai_api_key" in payload:
+        val = str(payload["openai_api_key"]).strip()
+        if val and not (val.startswith("...") or val == "••••••••"):
+            if val != cfg.openai_api_key:
+                cfg.openai_api_key = val
+                keys_changed = True
+        elif val == "":
+            if cfg.openai_api_key != "":
+                cfg.openai_api_key = ""
+                keys_changed = True
+
+    if "anthropic_api_key" in payload:
+        val = str(payload["anthropic_api_key"]).strip()
+        if val and not (val.startswith("...") or val == "••••••••"):
+            if val != cfg.anthropic_api_key:
+                cfg.anthropic_api_key = val
+                keys_changed = True
+        elif val == "":
+            if cfg.anthropic_api_key != "":
+                cfg.anthropic_api_key = ""
+                keys_changed = True
+
+    if keys_changed or model_changed:
+        save_api_keys_to_env(
+            gemini_key=cfg.gemini_api_key,
+            openai_key=cfg.openai_api_key,
+            anthropic_key=cfg.anthropic_api_key,
+            model=cfg.model,
+        )
+
+    recreate_speaker = False
     if "tts_voice" in payload:
         cfg.tts_voice = str(payload["tts_voice"])
+        recreate_speaker = True
     if "tts_backend" in payload:
         cfg.tts_backend = str(payload["tts_backend"])
-        # Recreate speaker
-        manager.speaker.close()
-        manager.speaker = Speaker(cfg, on_state=manager._on_tts_state)
+        recreate_speaker = True
+    if recreate_speaker and manager.speaker:
+        try:
+            manager.speaker.close()
+            manager.speaker = Speaker(cfg, on_state=manager._on_tts_state)
+        except Exception as e:
+            print(f"[ui_server] Speaker recreation error: {e}")
     if "tts_rate" in payload:
         cfg.tts_rate = int(payload["tts_rate"])
     if "confirm_mode" in payload:

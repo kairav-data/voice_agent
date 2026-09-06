@@ -10,8 +10,27 @@ import os
 from dataclasses import dataclass, field
 
 
+def _load_dotenv() -> None:
+    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    k, v = k.strip(), v.strip().strip("'\"")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+        except Exception:
+            pass
+
+_load_dotenv()
+
+
 def _env(name: str, default: str) -> str:
-    return os.environ.get(f"VA_{name}", default)
+    return os.environ.get(f"VA_{name}") or os.environ.get(name) or default
 
 
 def _env_int(name: str, default: int) -> int:
@@ -20,6 +39,59 @@ def _env_int(name: str, default: int) -> int:
 
 def _env_float(name: str, default: float) -> float:
     return float(_env(name, str(default)))
+
+
+def save_api_keys_to_env(
+    gemini_key: str = "",
+    openai_key: str = "",
+    anthropic_key: str = "",
+    model: str = "",
+) -> None:
+    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    existing_lines: list[str] = []
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                existing_lines = f.readlines()
+        except Exception:
+            existing_lines = []
+
+    keys_map: dict[str, str] = {}
+    if gemini_key:
+        keys_map["GEMINI_API_KEY"] = gemini_key
+        os.environ["GEMINI_API_KEY"] = gemini_key
+        os.environ["GOOGLE_API_KEY"] = gemini_key
+    if openai_key:
+        keys_map["OPENAI_API_KEY"] = openai_key
+        os.environ["OPENAI_API_KEY"] = openai_key
+    if anthropic_key:
+        keys_map["ANTHROPIC_API_KEY"] = anthropic_key
+        os.environ["ANTHROPIC_API_KEY"] = anthropic_key
+    if model:
+        keys_map["MODEL"] = model
+        os.environ["MODEL"] = model
+
+    updated_keys: set[str] = set()
+    new_lines: list[str] = []
+    for line in existing_lines:
+        trimmed = line.strip()
+        if "=" in trimmed and not trimmed.startswith("#"):
+            k = trimmed.split("=", 1)[0].strip()
+            if k in keys_map:
+                new_lines.append(f"{k}={keys_map[k]}\n")
+                updated_keys.add(k)
+                continue
+        new_lines.append(line)
+
+    for k, v in keys_map.items():
+        if k not in updated_keys:
+            new_lines.append(f"{k}={v}\n")
+
+    try:
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+    except Exception as e:
+        print(f"[config] Failed to save .env: {e}")
 
 
 def _get_or_create_auth_token() -> str:
@@ -47,12 +119,31 @@ def _get_or_create_auth_token() -> str:
 
 @dataclass
 class Config:
-    # ---------------- LLM (Ollama) ----------------
+    # ---------------- LLM Models & Multi-Provider ----------------
+    llm_provider: str = _env("LLM_PROVIDER", "auto")  # auto | ollama | gemini | openai | anthropic
+    gemini_api_key: str = _env("GEMINI_API_KEY", "") or _env("GOOGLE_API_KEY", "")
+    openai_api_key: str = _env("OPENAI_API_KEY", "")
+    anthropic_api_key: str = _env("ANTHROPIC_API_KEY", "")
+
     ollama_host: str = _env("OLLAMA_HOST", "http://localhost:11434")
     model: str = _env("MODEL", "gemma4:31b-cloud")
     temperature: float = _env_float("TEMPERATURE", 0.3)
     num_ctx: int = _env_int("NUM_CTX", 8192)
     request_timeout: int = _env_int("LLM_TIMEOUT", 180)
+
+    @property
+    def provider(self) -> str:
+        """Determines the active provider based on model name or explicit llm_provider."""
+        if self.llm_provider and self.llm_provider != "auto":
+            return self.llm_provider.lower()
+        m = (self.model or "").lower()
+        if m.startswith("gemini"):
+            return "gemini"
+        if m.startswith("gpt") or m.startswith("o1") or m.startswith("o3") or m.startswith("chatgpt"):
+            return "openai"
+        if m.startswith("claude"):
+            return "anthropic"
+        return "ollama"
     max_tool_rounds: int = _env_int("MAX_TOOL_ROUNDS", 6)
     history_turns: int = _env_int("HISTORY_TURNS", 12)  # user+assistant msgs kept
 
