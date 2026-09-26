@@ -240,6 +240,14 @@ html, body {
   color: var(--text-primary);
 }
 
+.brand-name-full {
+  display: inline;
+}
+
+.brand-name-short {
+  display: none;
+}
+
 .brand-version {
   font-size: 11px;
   font-weight: 500;
@@ -3440,6 +3448,216 @@ html, body {
 }
 
 /* ==========================================================================
+   SECURITY PIN CODE (LAPTOP HOST & MOBILE REMOTE AUTH)
+   ========================================================================== */
+.security-pin-card {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: rgba(0, 240, 255, 0.04);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 16px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .security-pin-card {
+  background: rgba(8, 14, 26, 0.75);
+  border-color: rgba(0, 240, 255, 0.24);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4), inset 0 0 16px rgba(0, 240, 255, 0.03);
+}
+
+.pin-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pin-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-cyan);
+}
+
+.btn-regen-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 8px;
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-regen-pin:hover {
+  background: rgba(0, 240, 255, 0.18);
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+}
+
+.btn-regen-pin:active {
+  transform: translateY(0);
+}
+
+.btn-regen-pin.spinning svg {
+  animation: spinPin 0.6s linear infinite;
+}
+
+@keyframes spinPin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pin-digits-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+
+.pin-digit-box {
+  width: 38px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1.5px solid rgba(0, 240, 255, 0.3);
+  border-radius: 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.45);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0;
+  user-select: all;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .pin-digit-box {
+  background: #060B14;
+  border-color: rgba(0, 240, 255, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(0, 240, 255, 0.05);
+}
+
+.pin-hint {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Mobile PIN Authentication Lock Screen */
+.pin-auth-card {
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+  border-radius: 24px;
+  animation: fadeInSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.pin-inputs-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 0 18px;
+  transition: transform 0.2s ease;
+}
+
+.pin-cell {
+  width: 44px;
+  height: 54px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-medium);
+  color: var(--text-primary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, background 0.16s ease;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+[data-theme="dark"] .pin-cell {
+  background: #080D18;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.pin-cell:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.22), 0 0 16px rgba(0, 240, 255, 0.25);
+  background: var(--bg-card);
+  transform: translateY(-2px);
+}
+
+.pin-cell.filled {
+  border-color: rgba(0, 240, 255, 0.55);
+  color: var(--accent-cyan);
+  background: rgba(0, 240, 255, 0.04);
+}
+
+.pin-cell.error {
+  border-color: var(--accent-rose) !important;
+  color: var(--accent-rose) !important;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.22) !important;
+  animation: pinCellErrorPulse 0.4s ease;
+}
+
+@keyframes pinCellErrorPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.pin-inputs-row.shake {
+  animation: pinShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes pinShake {
+  0%, 100% { transform: translateX(0); }
+  15%, 55% { transform: translateX(-8px); }
+  35%, 75% { transform: translateX(8px); }
+  85% { transform: translateX(-3px); }
+}
+
+@media (max-width: 400px) {
+  .pin-cell {
+    width: 40px;
+    height: 50px;
+    font-size: 21px;
+    border-radius: 10px;
+  }
+  .pin-inputs-row {
+    gap: 6px;
+  }
+  .pin-digit-box {
+    width: 34px;
+    height: 44px;
+    font-size: 19px;
+  }
+  .pin-digits-display {
+    gap: 6px;
+  }
+}
+
+/* ==========================================================================
    ANIMATIONS & RESPONSIVENESS
    ========================================================================== */
 @keyframes pulse-glow {
@@ -3492,33 +3710,82 @@ html, body {
 
 @media (max-width: 600px) {
   .header-bar {
-    height: 52px;
-    padding: 0 12px;
+    height: 50px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 1000;
   }
 
+  .brand-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .brand-name-full {
+    display: none;
+  }
+
+  .brand-name-short {
+    display: inline;
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+
+  /* Senior Design Placement: Floating Intelligence Capsule */
   .header-center-zone {
     position: absolute;
     left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    top: calc(100% + 9px);
+    transform: translateX(-50%);
     padding: 0;
+    display: flex;
     justify-content: center;
-    max-width: calc(100vw - 180px);
+    align-items: center;
+    width: auto;
+    max-width: calc(100vw - 24px);
+    z-index: 990;
+    pointer-events: auto;
   }
 
   .llm-indicator-pill {
     height: 30px;
-    padding: 0 10px;
+    padding: 0 12px;
     gap: 6px;
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-medium);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
   }
 
   .llm-label {
     font-size: 11px;
+    font-weight: 600;
   }
 
   .llm-model-name {
-    max-width: 95px;
-    font-size: 11px;
+    max-width: 170px;
+    font-size: 11.5px;
+    font-weight: 700;
   }
 
   .llm-sep {
@@ -3529,13 +3796,9 @@ html, body {
     font-size: 11px;
   }
 
-  .brand-section {
-    gap: 6px;
-  }
-
   .brand-mark {
     font-size: 13px;
-    gap: 7px;
+    gap: 6px;
   }
 
   .brand-version,
@@ -3548,22 +3811,22 @@ html, body {
     display: none !important;
   }
 
-  .header-actions {
-    gap: 6px;
-  }
-
-  .icon-btn {
-    width: 34px;
-    height: 34px;
-    padding: 0;
-  }
-
   .kbd-badge {
     display: none !important;
   }
 
   .main-stage {
-    padding: 8px 12px 14px;
+    padding: 48px 12px 14px;
+  }
+
+  .voice-state-badge {
+    margin-bottom: 4px;
+    padding: 2px 0 !important;
+  }
+
+  .voice-state-badge .badge-text {
+    font-size: 11px;
+    letter-spacing: 0.22em;
   }
 
   .orb-wrapper {

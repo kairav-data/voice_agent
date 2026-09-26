@@ -26,7 +26,8 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
             <path d="M12 2v20M17 5v14M7 5v14M2 10v4M22 10v4"></path>
           </svg>
-          <span>ECOWHISPER</span>
+          <span class="brand-name-full">ECOWHISPER</span>
+          <span class="brand-name-short">ECO</span>
         </div>
       </div>
 
@@ -612,9 +613,36 @@
                 Launch a free, encrypted Cloudflare tunnel to talk to your laptop and control your screen from outside home. No router port forwarding required.
               </p>
             </div>
+          <!-- 6-Digit Security PIN Display for Laptop Host -->
+          <div class="security-pin-card" id="securityPinCard">
+            <div class="pin-card-header">
+              <div class="pin-card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Remote Security PIN</span>
+              </div>
+              <button type="button" class="btn-regen-pin" id="btnRegenPin" title="Generate a fresh 6-digit PIN code">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                </svg>
+                <span>New PIN</span>
+              </button>
+            </div>
+            <div class="pin-digits-display" id="laptopPinDisplay">
+              <span class="pin-digit-box">·</span>
+              <span class="pin-digit-box">·</span>
+              <span class="pin-digit-box">·</span>
+              <span class="pin-digit-box">·</span>
+              <span class="pin-digit-box">·</span>
+              <span class="pin-digit-box">·</span>
+            </div>
+            <p class="pin-hint">Enter this 6-digit PIN on your phone when opening the remote link.</p>
           </div>
+        </div><!-- End paneRemoteTunnel -->
 
-          <div class="mobile-tips-list">
+        <div class="mobile-tips-list">
             <div class="mobile-tip-item">
               <span class="tip-num">1</span>
               <div><strong>End-to-End Encrypted</strong>: Connections are secured with a cryptographic pairing token so only your phone can command your PC.</div>
@@ -636,29 +664,48 @@
          AUTHENTICATION VERIFICATION MODAL (UNAUTHORIZED REMOTE ACCESS)
          ==================================================================== -->
     <div class="modal-overlay" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" style="display: none;">
-      <div class="mobile-connect-card" style="max-width: 420px;">
+      <div class="mobile-connect-card pin-auth-card" style="max-width: 400px;">
         <div class="mobile-connect-header">
           <div class="mobile-connect-header-left">
-            <div class="mobile-icon-badge" style="color: var(--accent-amber); background: var(--accent-amber-dim); border-color: rgba(217, 119, 6, 0.25);">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="mobile-icon-badge" style="color: var(--accent-cyan); background: var(--accent-cyan-dim); border-color: rgba(0, 240, 255, 0.25);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
               </svg>
             </div>
             <div>
-              <h3 id="authModalTitle">Pairing Key Required</h3>
-              <p class="modal-subtitle">Authentication required to command PC</p>
+              <h3 id="authModalTitle">Security PIN Verification</h3>
+              <p class="modal-subtitle">Remote Access Control</p>
             </div>
           </div>
         </div>
-        <div class="mobile-connect-body" style="padding-top: 18px;">
-          <p class="mobile-instructions">
-            This voice agent is protected. Enter your laptop's 32-character pairing token, or scan the QR code from your laptop screen:
+        <div class="mobile-connect-body" style="padding-top: 14px;">
+          <p class="mobile-instructions" style="text-align: center; margin-bottom: 16px;">
+            Enter the <strong>6-digit PIN</strong> displayed on your laptop screen to unlock remote control:
           </p>
-          <div style="display: flex; flex-direction: column; gap: 12px; width: 100%; box-sizing: border-box;">
-            <input type="password" id="inputAuthToken" placeholder="Paste 32-char Pairing Key here..." class="form-input" style="font-family: var(--font-mono); font-size: 13px; padding: 10px 14px;" />
-            <button class="btn-primary" id="btnSubmitAuthToken" style="padding: 11px; font-weight: 700; width: 100%;">Authenticate & Connect</button>
-            <div id="authErrorMsg" style="display: none; color: var(--accent-rose); font-size: 12px; text-align: center; font-weight: 500;">Invalid pairing key. Please check the key shown on your laptop.</div>
+          
+          <!-- 6 Individual Digit Input Cells -->
+          <div class="pin-inputs-row" id="pinInputsRow">
+            <input type="text" class="pin-cell" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="0" autofocus />
+            <input type="text" class="pin-cell" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="1" />
+            <input type="text" class="pin-cell" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="2" />
+            <input type="text" class="pin-cell" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="3" />
+            <input type="text" class="pin-cell" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="4" />
+            <input type="text" class="pin-cell" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="5" />
+          </div>
+
+          <!-- Hidden fallback for programmatic value access -->
+          <input type="hidden" id="inputAuthToken" />
+
+          <button class="btn-primary" id="btnSubmitAuthToken" style="padding: 12px; font-weight: 700; width: 100%; margin-top: 16px;">
+            <span>Authorize & Connect</span>
+          </button>
+          
+          <div id="authErrorMsg" style="display: none; color: var(--accent-rose); font-size: 12px; text-align: center; font-weight: 500; margin-top: 10px;">
+            Incorrect PIN code. Please check the 6-digit PIN on your laptop.
+          </div>
+          <div id="authSuccessMsg" style="display: none; color: var(--accent-emerald); font-size: 12.5px; text-align: center; font-weight: 600; margin-top: 10px;">
+            ✓ PIN Verified! Connecting...
           </div>
         </div>
       </div>

@@ -117,6 +117,29 @@ def _get_or_create_auth_token() -> str:
     return new_token
 
 
+def _get_or_create_pin_code() -> str:
+    env_pin = os.environ.get("VA_PIN_CODE")
+    if env_pin and len(env_pin.strip()) == 6 and env_pin.strip().isdigit():
+        return env_pin.strip()
+    pin_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pin_code")
+    if os.path.exists(pin_file):
+        try:
+            with open(pin_file, "r", encoding="utf-8") as f:
+                p = f.read().strip()
+                if len(p) == 6 and p.isdigit():
+                    return p
+        except Exception:
+            pass
+    import secrets
+    new_pin = f"{secrets.randbelow(900000) + 100000}"
+    try:
+        with open(pin_file, "w", encoding="utf-8") as f:
+            f.write(new_pin)
+    except Exception:
+        pass
+    return new_pin
+
+
 @dataclass
 class Config:
     # ---------------- LLM Models & Multi-Provider ----------------
@@ -197,6 +220,7 @@ class Config:
     ssl_key: str = _env("SSL_KEY", "key.pem")
     remote_tunnel: bool = _env("REMOTE_TUNNEL", "0") == "1"
     auth_token: str = field(default_factory=lambda: _get_or_create_auth_token())
+    pin_code: str = field(default_factory=lambda: _get_or_create_pin_code())
 
     system_prompt: str = field(default="")
 

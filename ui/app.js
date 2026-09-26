@@ -408,11 +408,19 @@
   const remoteUrlDisplay = document.getElementById("remoteUrlDisplay");
   const btnCopyRemoteUrl = document.getElementById("btnCopyRemoteUrl");
 
-  // Authentication Modal
+  // Authentication Modal & PIN Code Elements
   const authModal = document.getElementById("authModal");
   const inputAuthToken = document.getElementById("inputAuthToken");
   const btnSubmitAuthToken = document.getElementById("btnSubmitAuthToken");
   const authErrorMsg = document.getElementById("authErrorMsg");
+  const authSuccessMsg = document.getElementById("authSuccessMsg");
+  const pinInputsRow = document.getElementById("pinInputsRow");
+  const pinCells = pinInputsRow ? Array.from(pinInputsRow.querySelectorAll(".pin-cell")) : [];
+
+  // Security PIN Display on Laptop Host
+  const securityPinCard = document.getElementById("securityPinCard");
+  const laptopPinDisplay = document.getElementById("laptopPinDisplay");
+  const btnRegenPin = document.getElementById("btnRegenPin");
 
   // Visualizer Bars
   const vizStrip = document.getElementById("visualizerStrip");
@@ -675,15 +683,53 @@
   let reconnectTimer = null;
   let isAuthBlocked = false;
 
-  function showAuthModal(hasError = false) {
+  function updateLaptopPinDisplay(pin) {
+    if (!laptopPinDisplay) return;
+    const clean = String(pin || "").trim();
+    if (clean.length === 6) {
+      laptopPinDisplay.innerHTML = "";
+      for (let i = 0; i < 6; i++) {
+        const box = document.createElement("span");
+        box.className = "pin-digit-box";
+        box.textContent = clean[i];
+        laptopPinDisplay.appendChild(box);
+      }
+    }
+  }
+
+  function getEnteredPin() {
+    if (pinCells.length === 6) {
+      return pinCells.map((c) => c.value.trim()).join("");
+    }
+    return inputAuthToken ? inputAuthToken.value.trim() : "";
+  }
+
+  function showAuthModal(hasError = false, errorText = "") {
     if (!authModal) return;
     authModal.style.display = "flex";
     authModal.classList.add("active");
-    if (authErrorMsg) authErrorMsg.style.display = hasError ? "block" : "none";
-    if (inputAuthToken) {
-      inputAuthToken.value = currentAuthToken || "";
-      setTimeout(() => inputAuthToken.focus(), 150);
+
+    if (hasError) {
+      if (authErrorMsg) {
+        if (errorText) authErrorMsg.textContent = errorText;
+        authErrorMsg.style.display = "block";
+      }
+      if (pinInputsRow) {
+        pinInputsRow.classList.remove("shake");
+        void pinInputsRow.offsetWidth;
+        pinInputsRow.classList.add("shake");
+      }
+      pinCells.forEach((c) => c.classList.add("error"));
+    } else {
+      if (authErrorMsg) authErrorMsg.style.display = "none";
     }
+
+    if (authSuccessMsg) authSuccessMsg.style.display = "none";
+
+    setTimeout(() => {
+      const firstEmpty = pinCells.find((c) => !c.value.trim()) || pinCells[0];
+      if (firstEmpty) firstEmpty.focus();
+    }, 150);
   }
 
   function hideAuthModal() {
@@ -691,27 +737,159 @@
     authModal.style.display = "none";
     authModal.classList.remove("active");
     if (authErrorMsg) authErrorMsg.style.display = "none";
+    if (authSuccessMsg) authSuccessMsg.style.display = "none";
   }
 
-  if (btnSubmitAuthToken && inputAuthToken) {
-    const handleAuthSubmit = () => {
-      const val = inputAuthToken.value.trim();
-      if (!val) return;
-      currentAuthToken = val;
-      try {
-        localStorage.setItem("voice_agent_token", val);
-      } catch (e) {}
-      isAuthBlocked = false;
-      if (authErrorMsg) authErrorMsg.style.display = "none";
-      if (socket) {
-        try { socket.close(); } catch (e) {}
+  let isVerifyingPin = false;
+  async function submitPinAuth() {
+    if (isVerifyingPin) return;
+    const pin = getEnteredPin();
+    if (pin.length !== 6) {
+      showAuthModal(true, "Please enter all 6 digits of the PIN.");
+      const firstEmpty = pinCells.find((c) => !c.value.trim()) || pinCells[0];
+      if (firstEmpty) firstEmpty.focus();
+      return;
+    }
+
+    isVerifyingPin = true;
+    if (btnSubmitAuthToken) {
+      btnSubmitAuthToken.disabled = true;
+      const span = btnSubmitAuthToken.querySelector("span");
+      if (span) span.textContent = "Verifying PIN...";
+    }
+
+    try {
+      const res = await fetch("/api/auth/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success && data.token) {
+        currentAuthToken = data.token;
+        try {
+          localStorage.setItem("voice_agent_token", data.token);
+        } catch (e) {}
+
+        if (authErrorMsg) authErrorMsg.style.display = "none";
+        if (authSuccessMsg) authSuccessMsg.style.display = "block";
+        pinCells.forEach((c) => {
+          c.classList.remove("error");
+          c.classList.add("filled");
+        });
+
+        setTimeout(() => {
+          isAuthBlocked = false;
+          hideAuthModal();
+          if (socket) {
+            try { socket.close(); } catch (e) {}
+          }
+          connectWebSocket();
+        }, 600);
+      } else {
+        const errMsg = data.error || "Incorrect PIN code. Please check your laptop screen.";
+        showAuthModal(true, errMsg);
+        setTimeout(() => {
+          pinCells.forEach((c) => {
+            c.value = "";
+            c.classList.remove("filled", "error");
+          });
+          if (pinCells[0]) pinCells[0].focus();
+        }, 600);
       }
-      connectWebSocket();
-    };
-    btnSubmitAuthToken.addEventListener("click", handleAuthSubmit);
-    inputAuthToken.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleAuthSubmit();
+    } catch (err) {
+      console.error("[PIN verify error]", err);
+      showAuthModal(true, "Network error verifying PIN. Check connection.");
+    } finally {
+      isVerifyingPin = false;
+      if (btnSubmitAuthToken) {
+        btnSubmitAuthToken.disabled = false;
+        const span = btnSubmitAuthToken.querySelector("span");
+        if (span) span.textContent = "Authorize & Connect";
+      }
+    }
+  }
+
+  // Bind PIN Cell input events
+  if (pinCells.length > 0) {
+    pinCells.forEach((cell, idx) => {
+      cell.addEventListener("input", () => {
+        let val = cell.value.replace(/\D/g, "");
+        if (val.length > 1) {
+          val = val.slice(-1);
+        }
+        cell.value = val;
+
+        if (val) {
+          cell.classList.add("filled");
+          cell.classList.remove("error");
+          if (idx < pinCells.length - 1) {
+            pinCells[idx + 1].focus();
+            pinCells[idx + 1].select();
+          } else {
+            const completePin = pinCells.map((c) => c.value.trim()).join("");
+            if (completePin.length === 6) {
+              submitPinAuth();
+            }
+          }
+        } else {
+          cell.classList.remove("filled");
+        }
+      });
+
+      cell.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace") {
+          if (!cell.value && idx > 0) {
+            e.preventDefault();
+            pinCells[idx - 1].value = "";
+            pinCells[idx - 1].classList.remove("filled");
+            pinCells[idx - 1].focus();
+          } else {
+            cell.value = "";
+            cell.classList.remove("filled");
+          }
+        } else if (e.key === "ArrowLeft" && idx > 0) {
+          e.preventDefault();
+          pinCells[idx - 1].focus();
+        } else if (e.key === "ArrowRight" && idx < pinCells.length - 1) {
+          e.preventDefault();
+          pinCells[idx + 1].focus();
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          submitPinAuth();
+        }
+      });
+
+      cell.addEventListener("paste", (e) => {
+        e.preventDefault();
+        const pasted = ((e.clipboardData || window.clipboardData).getData("text") || "").replace(/\D/g, "").slice(0, 6);
+        if (!pasted) return;
+
+        for (let i = 0; i < 6; i++) {
+          if (pinCells[i]) {
+            pinCells[i].value = pasted[i] || "";
+            if (pasted[i]) {
+              pinCells[i].classList.add("filled");
+              pinCells[i].classList.remove("error");
+            } else {
+              pinCells[i].classList.remove("filled");
+            }
+          }
+        }
+
+        if (pasted.length === 6) {
+          pinCells[5].focus();
+          submitPinAuth();
+        } else if (pinCells[pasted.length]) {
+          pinCells[pasted.length].focus();
+        }
+      });
     });
+  }
+
+  if (btnSubmitAuthToken) {
+    btnSubmitAuthToken.addEventListener("click", submitPinAuth);
   }
 
   function connectWebSocket() {
@@ -776,11 +954,21 @@
       if (msg.network) {
         if (msg.network.url) updateMobileConnectInfo(msg.network.url);
         if (msg.network.auth_token) currentAuthToken = msg.network.auth_token;
-        if (msg.network.tunnel) updateTunnelUI(msg.network.tunnel);
+        if (msg.network.pin_code) updateLaptopPinDisplay(msg.network.pin_code);
+        if (msg.network.tunnel) {
+          updateTunnelUI(msg.network.tunnel);
+          if (msg.network.tunnel.pin_code) updateLaptopPinDisplay(msg.network.tunnel.pin_code);
+        }
       }
 
+    } else if (type === "pin_updated") {
+      if (msg.pin_code) updateLaptopPinDisplay(msg.pin_code);
+
     } else if (type === "tunnel_status") {
-      if (msg.tunnel) updateTunnelUI(msg.tunnel);
+      if (msg.tunnel) {
+        updateTunnelUI(msg.tunnel);
+        if (msg.tunnel.pin_code) updateLaptopPinDisplay(msg.tunnel.pin_code);
+      }
 
     } else if (type === "settings_updated") {
       updateSystemUI(msg.system || msg);
@@ -3434,7 +3622,10 @@
   async function fetchTunnelStatus() {
     try {
       const res = await authFetch("/api/tunnel/status").then((r) => r.json());
-      if (res) updateTunnelUI(res);
+      if (res) {
+        updateTunnelUI(res);
+        if (res.pin_code) updateLaptopPinDisplay(res.pin_code);
+      }
       return res;
     } catch (e) {
       console.warn("[tunnel status error]", e);
@@ -3458,6 +3649,7 @@
 
         if (res && res.tunnel) {
           updateTunnelUI(res.tunnel);
+          if (res.tunnel.pin_code) updateLaptopPinDisplay(res.tunnel.pin_code);
         }
 
         if (shouldEnable) {
@@ -3488,7 +3680,11 @@
         if (res) {
           if (res.local_url || res.url) updateMobileConnectInfo(res.local_url || res.url);
           if (res.auth_token) currentAuthToken = res.auth_token;
-          if (res.tunnel) updateTunnelUI(res.tunnel);
+          if (res.pin_code) updateLaptopPinDisplay(res.pin_code);
+          if (res.tunnel) {
+            updateTunnelUI(res.tunnel);
+            if (res.tunnel.pin_code) updateLaptopPinDisplay(res.tunnel.pin_code);
+          }
         }
       } catch (e) {
         console.warn("[network-info error]", e);
@@ -3532,6 +3728,34 @@
         const origText = span.textContent;
         span.textContent = "Copied!";
         setTimeout(() => (span.textContent = origText), 2000);
+      }
+    });
+  }
+
+  // Regenerate 6-Digit Remote Security PIN
+  if (btnRegenPin) {
+    btnRegenPin.addEventListener("click", async () => {
+      btnRegenPin.classList.add("spinning");
+      btnRegenPin.disabled = true;
+      try {
+        const res = await authFetch("/api/auth/regenerate-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }).then((r) => r.json());
+        if (res && res.success && res.pin_code) {
+          updateLaptopPinDisplay(res.pin_code);
+          const span = btnRegenPin.querySelector("span");
+          if (span) {
+            const orig = span.textContent;
+            span.textContent = "Updated!";
+            setTimeout(() => { span.textContent = orig; }, 1800);
+          }
+        }
+      } catch (e) {
+        console.warn("[regenerate-pin error]", e);
+      } finally {
+        btnRegenPin.classList.remove("spinning");
+        btnRegenPin.disabled = false;
       }
     });
   }
@@ -3784,9 +4008,24 @@
     });
   })();
 
+  // Check auth requirement on startup for remote access
+  async function initAuthAndConnect() {
+    try {
+      const res = await authFetch("/api/auth/check").then((r) => r.json());
+      if (res && res.requires_pin) {
+        isAuthBlocked = true;
+        showAuthModal(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("[auth/check failed]", e);
+    }
+    connectWebSocket();
+  }
+
   // Prime model and settings data on initial page load
   loadSettingsData();
 
-  // Start WebSocket
-  connectWebSocket();
+  // Start Auth Check & WebSocket
+  initAuthAndConnect();
 })();

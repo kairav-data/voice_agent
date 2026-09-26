@@ -1352,6 +1352,119 @@ def check_request_auth(request: Request) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Remote PIN Verification & Security Helpers
+# --------------------------------------------------------------------------- #
+_failed_pin_attempts: Dict[str, List[float]] = {}
+_pin_lock = threading.Lock()
+
+
+@app.get("/api/auth/check")
+def get_auth_check(request: Request) -> JSONResponse:
+    auth_token = manager.cfg.auth_token if manager else ""
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    is_remote = is_remote_client(client_ip, request.headers)
+    token = request.query_params.get("token") or request.headers.get("x-auth-token")
+    is_authorized = (not is_remote) or (bool(auth_token) and token == auth_token)
+
+    return JSONResponse(content={
+        "authenticated": is_authorized,
+        "is_remote": is_remote,
+        "requires_pin": is_remote and not is_authorized,
+        "pin_configured": bool(manager and getattr(manager.cfg, "pin_code", "")),
+    })
+
+
+@app.post("/api/auth/verify-pin")
+async def post_verify_pin(request: Request) -> JSONResponse:
+    if not manager:
+        raise HTTPException(status_code=503, detail="Manager not initialized")
+
+    client_ip = getattr(request.client, "host", "") if request.client else "unknown"
+    now = time.time()
+
+    # Rate limiting: max 5 failed attempts per 60 seconds per IP
+    with _pin_lock:
+        attempts = [t for t in _failed_pin_attempts.get(client_ip, []) if now - t < 60.0]
+        if len(attempts) >= 5:
+            retry_after = int(60 - (now - attempts[0]))
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "success": False,
+                    "error": f"Too many failed attempts. Please wait {max(1, retry_after)} seconds before trying again.",
+                    "retry_after": retry_after
+                }
+            )
+        _failed_pin_attempts[client_ip] = attempts
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    submitted_pin = str(data.get("pin", "")).strip()
+    current_pin = getattr(manager.cfg, "pin_code", "")
+
+    import hmac
+    is_valid = bool(current_pin and submitted_pin and len(submitted_pin) == 6 and hmac.compare_digest(submitted_pin, current_pin))
+
+    if is_valid:
+        with _pin_lock:
+            _failed_pin_attempts.pop(client_ip, None)
+        print(f"[PIN Auth] Successfully verified remote client {client_ip} with 6-digit PIN.")
+        return JSONResponse(content={
+            "success": True,
+            "token": manager.cfg.auth_token,
+            "message": "PIN verified successfully"
+        })
+    else:
+        with _pin_lock:
+            _failed_pin_attempts.setdefault(client_ip, []).append(now)
+            remaining = 5 - len(_failed_pin_attempts[client_ip])
+        print(f"[PIN Auth] Failed PIN verification from {client_ip} (remaining={max(0, remaining)})")
+        return JSONResponse(
+            status_code=401,
+            content={
+                "success": False,
+                "error": "Incorrect PIN code. Please check the 6-digit PIN on your laptop screen.",
+                "remaining_attempts": max(0, remaining)
+            }
+        )
+
+
+@app.post("/api/auth/regenerate-pin")
+def post_regenerate_pin(request: Request) -> JSONResponse:
+    if not manager:
+        raise HTTPException(status_code=503, detail="Manager not initialized")
+
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    is_remote = is_remote_client(client_ip, request.headers)
+    token = request.query_params.get("token") or request.headers.get("x-auth-token")
+    if is_remote and (not manager.cfg.auth_token or token != manager.cfg.auth_token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    import secrets
+    new_pin = f"{secrets.randbelow(900000) + 100000}"
+    manager.cfg.pin_code = new_pin
+    pin_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pin_code")
+    try:
+        with open(pin_file, "w", encoding="utf-8") as f:
+            f.write(new_pin)
+    except Exception as e:
+        print(f"[config] Failed to write .pin_code: {e}")
+
+    print(f"[PIN Auth] Host regenerated 6-digit security PIN: {new_pin}")
+
+    # Broadcast to laptop UI
+    manager.broadcast_sync("pin_updated", {"pin_code": new_pin})
+
+    return JSONResponse(content={
+        "success": True,
+        "pin_code": new_pin
+    })
+
+
+# --------------------------------------------------------------------------- #
 # REST Endpoints
 # --------------------------------------------------------------------------- #
 @app.get("/favicon.ico")
@@ -1798,9 +1911,11 @@ def _on_tunnel_change(info: Dict[str, Any]) -> None:
     """Broadcasts tunnel state updates reactively to all connected clients."""
     if manager:
         auth_token = manager.cfg.auth_token or ""
+        pin_code = getattr(manager.cfg, "pin_code", "") or ""
         enriched = dict(info)
+        enriched["pin_code"] = pin_code
         if enriched.get("active") and enriched.get("public_url"):
-            enriched["authenticated_url"] = f"{enriched['public_url']}?token={auth_token}"
+            enriched["authenticated_url"] = enriched["public_url"]
         manager.broadcast_sync("tunnel_status", {"tunnel": enriched})
 
 
@@ -1813,6 +1928,7 @@ def get_network_info(request: Request) -> JSONResponse:
     port = manager.cfg.ui_port if manager else 8000
     protocol = "https" if (manager and manager.cfg.ui_ssl) else "http"
     auth_token = manager.cfg.auth_token if manager else ""
+    pin_code = getattr(manager.cfg, "pin_code", "") if manager else ""
     local_url = f"{protocol}://{ip}:{port}"
 
     client_ip = getattr(request.client, "host", "") if request.client else ""
@@ -1823,7 +1939,7 @@ def get_network_info(request: Request) -> JSONResponse:
     t_info = tunnel_manager.get_info()
     remote_url = None
     if t_info["active"] and t_info["public_url"]:
-        remote_url = f"{t_info['public_url']}?token={auth_token}" if is_authorized else t_info["public_url"]
+        remote_url = t_info["public_url"]
 
     local_auth_url = f"{local_url}?token={auth_token}" if is_authorized else local_url
 
@@ -1835,6 +1951,7 @@ def get_network_info(request: Request) -> JSONResponse:
         "local_url": local_auth_url,
         "remote_url": remote_url,
         "auth_token": auth_token if is_authorized else "",
+        "pin_code": pin_code if is_authorized else "",
         "tunnel": t_info,
         "hostname": socket.gethostname(),
         "ssl_enabled": manager.cfg.ui_ssl if manager else False,
@@ -1845,13 +1962,16 @@ def get_network_info(request: Request) -> JSONResponse:
 def get_tunnel_status(request: Request) -> JSONResponse:
     info = tunnel_manager.get_info()
     auth_token = manager.cfg.auth_token if manager else ""
+    pin_code = getattr(manager.cfg, "pin_code", "") if manager else ""
     client_ip = getattr(request.client, "host", "") if request.client else ""
     is_remote = is_remote_client(client_ip, request.headers)
     token = request.query_params.get("token") or request.headers.get("x-auth-token")
     is_authorized = (not is_remote) or (bool(auth_token) and token == auth_token)
 
     if info["active"] and info["public_url"]:
-        info["authenticated_url"] = f"{info['public_url']}?token={auth_token}" if is_authorized else info["public_url"]
+        info["authenticated_url"] = info["public_url"]
+    if is_authorized:
+        info["pin_code"] = pin_code
     return JSONResponse(content=info)
 
 
@@ -1881,7 +2001,8 @@ def post_tunnel_toggle(request: Request, payload: Dict[str, Any] = None) -> JSON
         info = tunnel_manager.get_info()
 
     if info.get("active") and info.get("public_url"):
-        info["authenticated_url"] = f"{info['public_url']}?token={auth_token}"
+        info["authenticated_url"] = info["public_url"]
+        info["pin_code"] = getattr(manager.cfg, "pin_code", "") if manager else ""
     return JSONResponse(content={"status": "ok", "tunnel": info})
 
 
@@ -2185,8 +2306,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     local_ip = get_local_ip()
     t_info = tunnel_manager.get_info()
     auth_token = manager.cfg.auth_token if manager else ""
+    pin_code = getattr(manager.cfg, "pin_code", "") if manager else ""
     if t_info.get("active") and t_info.get("public_url"):
-        t_info["authenticated_url"] = f"{t_info['public_url']}?token={auth_token}"
+        t_info["authenticated_url"] = t_info["public_url"]
+        t_info["pin_code"] = pin_code
 
     # Send initial state snapshot with network info via sender queue
     init_msg = json.dumps({
@@ -2201,6 +2324,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             "protocol": "https" if manager.cfg.ui_ssl else "http",
             "url": f"{'https' if manager.cfg.ui_ssl else 'http'}://{local_ip}:{manager.cfg.ui_port}?token={auth_token}",
             "auth_token": auth_token,
+            "pin_code": pin_code,
             "tunnel": t_info,
         },
     })
