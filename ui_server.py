@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from audio import Recorder, Speaker, list_voices
-from config import Config, save_api_keys_to_env
+from config import Config, save_api_keys_to_env, save_pin_code, get_bundle_dir, get_user_data_dir
 from llm import OllamaAgent
 from stt import Transcriber
 from tools import ToolBox, assess_command_risk, classify
@@ -367,7 +367,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = get_bundle_dir()
 UI_DIR = os.path.join(BASE_DIR, "ui")
 
 
@@ -1312,6 +1312,7 @@ class AgentUIManager:
                 "confirm_mode": self.cfg.confirm_mode,
                 "default_shell": self.cfg.default_shell,
                 "working_dir": self.toolbox.cwd,
+                "pin_code": getattr(self.cfg, "pin_code", ""),
             },
             "continuous_listening": self.continuous_listening,
         }
@@ -1336,7 +1337,7 @@ def is_remote_client(client_host: str, headers: Any) -> bool:
         or h_dict.get("cf-ray")
         or ("trycloudflare.com" in host_header)
     )
-    is_lan_or_wan = client_host not in ("127.0.0.1", "::1", "localhost")
+    is_lan_or_wan = client_host not in ("127.0.0.1", "::1", "localhost", "testclient")
     return is_tunnel or is_lan_or_wan
 
 
@@ -1446,12 +1447,7 @@ def post_regenerate_pin(request: Request) -> JSONResponse:
     import secrets
     new_pin = f"{secrets.randbelow(900000) + 100000}"
     manager.cfg.pin_code = new_pin
-    pin_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pin_code")
-    try:
-        with open(pin_file, "w", encoding="utf-8") as f:
-            f.write(new_pin)
-    except Exception as e:
-        print(f"[config] Failed to write .pin_code: {e}")
+    save_pin_code(new_pin)
 
     print(f"[PIN Auth] Host regenerated 6-digit security PIN: {new_pin}")
 
@@ -1473,10 +1469,17 @@ def get_favicon() -> Response:
 
 
 @app.get("/api/status")
-def get_status() -> JSONResponse:
+def get_status(request: Request) -> JSONResponse:
     if manager is None:
         raise HTTPException(status_code=503, detail="Manager not initialized")
-    return JSONResponse(content=manager.get_system_status())
+    status = manager.get_system_status()
+    client_ip = getattr(request.client, "host", "") if request.client else ""
+    is_remote = is_remote_client(client_ip, request.headers)
+    token = request.query_params.get("token") or request.headers.get("x-auth-token")
+    is_authorized = (not is_remote) or (bool(manager.cfg.auth_token) and token == manager.cfg.auth_token)
+    if not is_authorized and "safety" in status and "pin_code" in status["safety"]:
+        status["safety"]["pin_code"] = "••••••"
+    return JSONResponse(content=status)
 
 
 @app.get("/api/models")
@@ -1815,6 +1818,16 @@ def post_settings(request: Request, payload: Dict[str, Any]) -> JSONResponse:
         cfg.confirm_mode = str(payload["confirm_mode"])
     if "default_shell" in payload:
         cfg.default_shell = str(payload["default_shell"])
+    if "pin_code" in payload:
+        raw_pin = str(payload["pin_code"]).strip()
+        if raw_pin:
+            if len(raw_pin) != 6 or not raw_pin.isdigit():
+                raise HTTPException(status_code=400, detail="Remote Security PIN must be exactly 6 numeric digits")
+            if raw_pin != getattr(cfg, "pin_code", ""):
+                cfg.pin_code = raw_pin
+                save_pin_code(raw_pin)
+                manager.broadcast_sync("pin_updated", {"pin_code": raw_pin})
+                print(f"[PIN Auth] Host updated 6-digit security PIN in settings: {raw_pin}")
     if "input_device" in payload:
         dev = payload["input_device"]
         cfg.input_device = int(dev) if dev is not None and int(dev) >= 0 else None
@@ -1915,7 +1928,10 @@ def _on_tunnel_change(info: Dict[str, Any]) -> None:
         enriched = dict(info)
         enriched["pin_code"] = pin_code
         if enriched.get("active") and enriched.get("public_url"):
-            enriched["authenticated_url"] = enriched["public_url"]
+            enriched["authenticated_url"] = (
+                f"{enriched['public_url']}?token={auth_token}"
+                if auth_token else enriched["public_url"]
+            )
         manager.broadcast_sync("tunnel_status", {"tunnel": enriched})
 
 
@@ -1938,8 +1954,14 @@ def get_network_info(request: Request) -> JSONResponse:
 
     t_info = tunnel_manager.get_info()
     remote_url = None
-    if t_info["active"] and t_info["public_url"]:
-        remote_url = t_info["public_url"]
+    if t_info.get("active") and t_info.get("public_url"):
+        remote_url = (
+            f"{t_info['public_url']}?token={auth_token}"
+            if is_authorized and auth_token else t_info["public_url"]
+        )
+        t_info["authenticated_url"] = remote_url
+    if is_authorized:
+        t_info["pin_code"] = pin_code
 
     local_auth_url = f"{local_url}?token={auth_token}" if is_authorized else local_url
 
@@ -1969,14 +1991,17 @@ def get_tunnel_status(request: Request) -> JSONResponse:
     is_authorized = (not is_remote) or (bool(auth_token) and token == auth_token)
 
     if info["active"] and info["public_url"]:
-        info["authenticated_url"] = info["public_url"]
+        info["authenticated_url"] = (
+            f"{info['public_url']}?token={auth_token}"
+            if is_authorized and auth_token else info["public_url"]
+        )
     if is_authorized:
         info["pin_code"] = pin_code
     return JSONResponse(content=info)
 
 
 @app.post("/api/tunnel/toggle")
-def post_tunnel_toggle(request: Request, payload: Dict[str, Any] = None) -> JSONResponse:
+async def post_tunnel_toggle(request: Request) -> JSONResponse:
     auth_token = manager.cfg.auth_token if manager else ""
     client_ip = getattr(request.client, "host", "") if request.client else ""
     is_remote = is_remote_client(client_ip, request.headers)
@@ -1984,12 +2009,18 @@ def post_tunnel_toggle(request: Request, payload: Dict[str, Any] = None) -> JSON
     if is_remote and (not auth_token or token != auth_token):
         raise HTTPException(status_code=401, detail="Unauthorized: pairing token required")
 
+    # Read body manually — FastAPI won't auto-parse a plain Dict body without a Pydantic model
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
     enable = payload.get("enable") if payload else None
     info = tunnel_manager.get_info()
     if enable is True or (enable is None and not info["active"]):
         port = manager.cfg.ui_port if manager else 8000
-        ssl = manager.cfg.ui_ssl if manager else True
-        threading.Thread(target=tunnel_manager.start, args=(port, ssl), daemon=True).start()
+        is_ssl = bool(manager and manager.cfg.ui_ssl)
+        threading.Thread(target=tunnel_manager.start, args=(port, is_ssl), daemon=True).start()
         info = {
             "active": False,
             "status": "starting",
@@ -2001,7 +2032,10 @@ def post_tunnel_toggle(request: Request, payload: Dict[str, Any] = None) -> JSON
         info = tunnel_manager.get_info()
 
     if info.get("active") and info.get("public_url"):
-        info["authenticated_url"] = info["public_url"]
+        info["authenticated_url"] = (
+            f"{info['public_url']}?token={auth_token}"
+            if auth_token else info["public_url"]
+        )
         info["pin_code"] = getattr(manager.cfg, "pin_code", "") if manager else ""
     return JSONResponse(content={"status": "ok", "tunnel": info})
 
@@ -2308,7 +2342,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     auth_token = manager.cfg.auth_token if manager else ""
     pin_code = getattr(manager.cfg, "pin_code", "") if manager else ""
     if t_info.get("active") and t_info.get("public_url"):
-        t_info["authenticated_url"] = t_info["public_url"]
+        t_info["authenticated_url"] = (
+            f"{t_info['public_url']}?token={auth_token}"
+            if auth_token else t_info["public_url"]
+        )
         t_info["pin_code"] = pin_code
 
     # Send initial state snapshot with network info via sender queue
@@ -2505,6 +2542,36 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 # Static Files & UI Serving
 # --------------------------------------------------------------------------- #
 if os.path.isdir(UI_DIR):
+    @app.get("/static/style.css")
+    def serve_style_css() -> FileResponse:
+        css_path = os.path.join(UI_DIR, "style.css")
+        if not os.path.isfile(css_path):
+            raise HTTPException(status_code=404, detail="style.css not found")
+        return FileResponse(
+            css_path,
+            media_type="text/css",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+
+    @app.get("/static/app.js")
+    def serve_app_js() -> FileResponse:
+        js_path = os.path.join(UI_DIR, "app.js")
+        if not os.path.isfile(js_path):
+            raise HTTPException(status_code=404, detail="app.js not found")
+        return FileResponse(
+            js_path,
+            media_type="application/javascript",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+
     app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
 
@@ -2513,7 +2580,14 @@ def serve_root() -> FileResponse:
     index_path = os.path.join(UI_DIR, "index.html")
     if not os.path.isfile(index_path):
         raise HTTPException(status_code=404, detail="UI index.html not found")
-    return FileResponse(index_path)
+    return FileResponse(
+        index_path,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -2551,9 +2625,17 @@ def run_server(cfg: Config, auto_open: bool = True) -> None:
     ssl_certfile = None
     ssl_keyfile = None
     if cfg.ui_ssl:
-        cert_path = os.path.join(BASE_DIR, cfg.ssl_cert)
-        key_path = os.path.join(BASE_DIR, cfg.ssl_key)
-        if not (os.path.isfile(cert_path) and os.path.isfile(key_path)):
+        user_cert = os.path.join(get_user_data_dir(), cfg.ssl_cert)
+        user_key = os.path.join(get_user_data_dir(), cfg.ssl_key)
+        bundle_cert = os.path.join(get_bundle_dir(), cfg.ssl_cert)
+        bundle_key = os.path.join(get_bundle_dir(), cfg.ssl_key)
+
+        if os.path.isfile(user_cert) and os.path.isfile(user_key):
+            cert_path, key_path = user_cert, user_key
+        elif os.path.isfile(bundle_cert) and os.path.isfile(bundle_key):
+            cert_path, key_path = bundle_cert, bundle_key
+        else:
+            cert_path, key_path = user_cert, user_key
             print("[ui_server] Generating self-signed SSL certificate for phone microphone access...")
             generate_self_signed_cert(cert_path, key_path, local_ip)
         ssl_certfile = cert_path

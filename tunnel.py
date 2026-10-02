@@ -18,6 +18,8 @@ import time
 import urllib.request
 from typing import Any, Dict, Optional
 
+from config import get_bundle_dir, get_user_data_dir
+
 
 CLOUDFLARED_DOWNLOAD_URL = (
     "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
@@ -58,8 +60,10 @@ class TunnelManager:
         if found:
             return found
 
-        # 2. Common Windows Program Files locations
+        # 2. Common Windows Program Files locations and user data directory
         candidates = [
+            os.path.join(get_user_data_dir(), "cloudflared.exe"),
+            os.path.join(get_bundle_dir(), "cloudflared.exe"),
             os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "cloudflared", "cloudflared.exe"),
             os.path.join(os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"), "cloudflared", "cloudflared.exe"),
             os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Links", "cloudflared.exe"),
@@ -72,13 +76,13 @@ class TunnelManager:
         return None
 
     def download_binary(self) -> Optional[str]:
-        """Downloads standalone cloudflared binary to project directory if not installed."""
-        target_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cloudflared.exe")
+        """Downloads standalone cloudflared binary to user data directory if not installed."""
+        target_path = os.path.join(get_user_data_dir(), "cloudflared.exe")
         if os.path.exists(target_path):
             return target_path
 
         try:
-            print("[Tunnel] Downloading cloudflared standalone binary for secure remote access...")
+            print(f"[Tunnel] Downloading cloudflared standalone binary to {target_path}...")
             urllib.request.urlretrieve(CLOUDFLARED_DOWNLOAD_URL, target_path)
             if os.path.exists(target_path):
                 print(f"[Tunnel] Successfully downloaded cloudflared to {target_path}")

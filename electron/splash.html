@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECOWHISPER — Starting Up</title>
+  <link rel="stylesheet" href="splash.css">
+</head>
+<body>
+  <div class="splash-container">
+    <div class="glow-orb">
+      <div class="pulse-ring ring-1"></div>
+      <div class="pulse-ring ring-2"></div>
+      <div class="pulse-ring ring-3"></div>
+      <div class="orb-core">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#00f2fe" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M17 5v14M7 5v14M2 10v4M22 10v4"></path>
+        </svg>
+      </div>
+    </div>
+
+    <div class="title-section">
+      <h1 class="brand-title">ECOWHISPER</h1>
+      <span class="brand-subtitle">Autonomous Local AI Command Center</span>
+    </div>
+
+    <div class="status-box">
+      <div class="status-spinner"></div>
+      <span class="status-text" id="statusText">Initializing Neural Engine...</span>
+    </div>
+
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+
+    <div class="version-tag">Desktop Edition v2.5.0</div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    const statusText = document.getElementById('statusText');
+    const progressBar = document.getElementById('progressBar');
+
+    ipcRenderer.on('splash:status', (event, { message, progress }) => {
+      if (message) statusText.textContent = message;
+      if (progress !== undefined) progressBar.style.width = `${progress}%`;
+    });
+  </script>
+</body>
+</html>

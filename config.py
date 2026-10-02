@@ -7,11 +7,39 @@ Every value can be overridden with an environment variable of the same name
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 
 
+def get_bundle_dir() -> str:
+    """Returns directory containing bundled application assets (ui, voices, etc.)."""
+    if getattr(sys, "frozen", False):
+        return getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_user_data_dir() -> str:
+    """Returns directory for writable persistent user data (.env, .pin_code, .auth_token)."""
+    if getattr(sys, "frozen", False):
+        appdata = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
+        if appdata:
+            data_dir = os.path.join(appdata, "ECOWHISPER")
+            try:
+                os.makedirs(data_dir, exist_ok=True)
+                return data_dir
+            except Exception:
+                pass
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def _load_dotenv() -> None:
-    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    env_file = os.path.join(get_user_data_dir(), ".env")
+    if not os.path.exists(env_file):
+        bundle_env = os.path.join(get_bundle_dir(), ".env")
+        if os.path.exists(bundle_env):
+            env_file = bundle_env
+
     if os.path.exists(env_file):
         try:
             with open(env_file, "r", encoding="utf-8") as f:
@@ -47,7 +75,7 @@ def save_api_keys_to_env(
     anthropic_key: str = "",
     model: str = "",
 ) -> None:
-    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    env_file = os.path.join(get_user_data_dir(), ".env")
     existing_lines: list[str] = []
     if os.path.exists(env_file):
         try:
@@ -98,7 +126,7 @@ def _get_or_create_auth_token() -> str:
     env_token = os.environ.get("VA_AUTH_TOKEN")
     if env_token:
         return env_token.strip()
-    token_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".auth_token")
+    token_file = os.path.join(get_user_data_dir(), ".auth_token")
     if os.path.exists(token_file):
         try:
             with open(token_file, "r", encoding="utf-8") as f:
@@ -121,7 +149,7 @@ def _get_or_create_pin_code() -> str:
     env_pin = os.environ.get("VA_PIN_CODE")
     if env_pin and len(env_pin.strip()) == 6 and env_pin.strip().isdigit():
         return env_pin.strip()
-    pin_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pin_code")
+    pin_file = os.path.join(get_user_data_dir(), ".pin_code")
     if os.path.exists(pin_file):
         try:
             with open(pin_file, "r", encoding="utf-8") as f:
@@ -138,6 +166,22 @@ def _get_or_create_pin_code() -> str:
     except Exception:
         pass
     return new_pin
+
+
+def save_pin_code(new_pin: str) -> bool:
+    """Validate and persist a 6-digit PIN code to .pin_code and environment."""
+    clean_pin = str(new_pin).strip()
+    if len(clean_pin) != 6 or not clean_pin.isdigit():
+        return False
+    pin_file = os.path.join(get_user_data_dir(), ".pin_code")
+    try:
+        with open(pin_file, "w", encoding="utf-8") as f:
+            f.write(clean_pin)
+    except Exception as e:
+        print(f"[config] Failed to write .pin_code: {e}")
+        return False
+    os.environ["VA_PIN_CODE"] = clean_pin
+    return True
 
 
 @dataclass

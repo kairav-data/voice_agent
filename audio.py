@@ -20,7 +20,7 @@ from typing import Callable
 import numpy as np
 import sounddevice as sd
 
-from config import Config
+from config import Config, get_bundle_dir
 
 
 def resolve_input_device(requested_device: int | None = None) -> tuple[int | None, str]:
@@ -326,7 +326,7 @@ def find_piper_model(cfg: Config) -> str | None:
     """Explicit path, else the voice named in tts_voice, else the first .onnx found."""
     if cfg.piper_model and os.path.isfile(cfg.piper_model):
         return cfg.piper_model
-    voices_dir = cfg.piper_dir or os.path.join(os.path.dirname(__file__), "voices")
+    voices_dir = cfg.piper_dir or os.path.join(get_bundle_dir(), "voices")
     if not os.path.isdir(voices_dir):
         return None
     models = sorted(f for f in os.listdir(voices_dir) if f.endswith(".onnx"))
@@ -701,7 +701,7 @@ class Speaker:
 # --------------------------------------------------------------------------- #
 def list_voices(cfg: Config) -> str:
     lines: list[str] = ["piper (offline) - .onnx files in ./voices:"]
-    voices_dir = cfg.piper_dir or os.path.join(os.path.dirname(__file__), "voices")
+    voices_dir = cfg.piper_dir or os.path.join(get_bundle_dir(), "voices")
     found = sorted(os.listdir(voices_dir)) if os.path.isdir(voices_dir) else []
     lines += [f"  {f}" for f in found if f.endswith(".onnx")] or ["  (none downloaded)"]
     lines.append(
@@ -746,7 +746,7 @@ def demo_voices(cfg: Config) -> None:
     import copy
 
     candidates: list[tuple[str, str, str]] = []  # (backend, voice, label)
-    voices_dir = cfg.piper_dir or os.path.join(os.path.dirname(__file__), "voices")
+    voices_dir = cfg.piper_dir or os.path.join(get_bundle_dir(), "voices")
     if os.path.isdir(voices_dir):
         for name in sorted(f for f in os.listdir(voices_dir) if f.endswith(".onnx")):
             stem = name[:-5]

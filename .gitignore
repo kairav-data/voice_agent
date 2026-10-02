@@ -5,3 +5,8 @@ voices/*.onnx
 .auth_token
 cloudflared.exe
 .env
+node_modules/
+dist_installer_electron/
+build/
+dist/
+dist_installer/

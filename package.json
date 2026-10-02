@@ -1,0 +1,79 @@
+{
+  "name": "ecowhisper-desktop",
+  "productName": "ECOWHISPER Command Center",
+  "version": "2.5.0",
+  "description": "Autonomous Local AI Voice Assistant & Desktop Command Center powered by Whisper, Ollama, and Neural TTS",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron electron/main.js",
+    "dev": "electron electron/main.js --dev",
+    "package": "electron-builder --dir",
+    "dist": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable",
+    "build:installer": "electron-builder --win nsis"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kairav-data/voice_agent.git"
+  },
+  "keywords": [
+    "voice-agent",
+    "ai",
+    "whisper",
+    "ollama",
+    "electron",
+    "command-center",
+    "windows"
+  ],
+  "author": "ECOWHISPER",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^36.9.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.ecowhisper.commandcenter",
+    "productName": "ECOWHISPER",
+    "copyright": "Copyright © 2026 ECOWHISPER",
+    "directories": {
+      "output": "dist_installer_electron"
+    },
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "ui/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/ECOWHISPER",
+        "to": "ECOWHISPER",
+        "filter": ["**/*"]
+      }
+    ],
+    "publish": null,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ECOWHISPER Command Center",
+      "artifactName": "${productName}_Setup_v${version}.${ext}",
+      "uninstallDisplayName": "${productName} Command Center"
+    },
+    "portable": {
+      "artifactName": "${productName}_Portable_v${version}.${ext}"
+    }
+  }
+}

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20260929_mic_in_bar">
 </head>
 <body>
   <!-- Ambient Cosmic Mesh Gradient -->
@@ -31,8 +31,8 @@
         </div>
       </div>
 
-      <!-- Top Center LLM Indicator & Quick Model Switcher Dropdown -->
-      <div class="header-center-zone">
+      <!-- Top Center LLM Indicator & Quick Model Switcher Dropdown (Hidden) -->
+      <div class="header-center-zone" style="display: none !important;">
         <div class="llm-indicator-pill state-ready" id="llmIndicator" role="button" tabindex="0" title="Click to switch AI model" aria-label="Model: gemma4:31b-cloud | Active" aria-haspopup="true" aria-expanded="false">
           <span class="llm-label">Model :</span>
           <span class="llm-model-name" id="pillModelName">gemma4:31b-cloud</span>
@@ -48,7 +48,11 @@
           <div class="quick-model-header">
             <span class="quick-model-title">Select AI Model</span>
             <button type="button" class="btn-quick-settings" id="btnQuickOpenSettings" title="Configure API Keys & Settings">
-              <span>⚙️ API Keys</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span>API Keys</span>
             </button>
           </div>
           <div class="quick-model-list custom-scroll" id="quickModelList">
@@ -57,81 +61,114 @@
         </div>
       </div>
 
-      <!-- Header Action Controls -->
-      <div class="header-actions">
-        <button class="icon-btn" id="btnToggleContinuous" title="Continuous Listening: Paused" aria-label="Toggle Continuous Listening">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
-          </svg>
-        </button>
+      <!-- Header Right Section: Controls & Desktop Window Actions -->
+      <div class="header-right-zone">
+        <div class="header-actions">
+          <button class="icon-btn" id="btnToggleContinuous" title="Continuous Listening: Paused" aria-label="Toggle Continuous Listening">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnToggleScreenMirror" title="Live Laptop Screen Mirror (Ctrl+M)" aria-label="Toggle Screen Mirror">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-            <line x1="8" y1="21" x2="16" y2="21"></line>
-            <line x1="12" y1="17" x2="12" y2="21"></line>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnToggleScreenMirror" title="Live Laptop Screen Mirror (Ctrl+M)" aria-label="Toggle Screen Mirror">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnOpenMobileConnect" title="Connect Phone / Mobile Companion" aria-label="Phone Connect">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-            <line x1="12" y1="18" x2="12.01" y2="18"></line>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnOpenMobileConnect" title="Connect Phone / Mobile Companion" aria-label="Phone Connect">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+          </button>
 
-        <button class="icon-btn danger-btn" id="btnStopInterrupt" title="Interrupt / Stop (Escape)" aria-label="Stop Execution" style="display: none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="5" y="5" width="14" height="14" rx="2"></rect>
-          </svg>
-        </button>
+          <button class="icon-btn danger-btn" id="btnStopInterrupt" title="Interrupt / Stop (Escape)" aria-label="Stop Execution" style="display: none;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnOpenConsole" title="Command Runner & Terminal Console (Ctrl+J)" aria-label="Open Command Console">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 17 10 11 4 5"></polyline>
-            <line x1="12" y1="19" x2="20" y2="19"></line>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnOpenConsole" title="Command Runner & Terminal Console (Ctrl+J)" aria-label="Open Command Console">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnOpenTimeline" title="Activity Timeline (Ctrl+T)" aria-label="Open Timeline">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnOpenTimeline" title="Activity Timeline (Ctrl+T)" aria-label="Open Timeline">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnOpenHistory" title="History (Ctrl+H)" aria-label="Open Conversation History">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnOpenHistory" title="History (Ctrl+H)" aria-label="Open Conversation History">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnToggleTheme" title="Switch to Dark Theme" aria-label="Toggle Theme">
-          <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-          <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnToggleTheme" title="Switch to Dark Theme" aria-label="Toggle Theme">
+            <svg class="theme-icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <svg class="theme-icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </button>
 
-        <button class="icon-btn" id="btnOpenSettings" title="Settings (Ctrl+,)" aria-label="Open Settings">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-        </button>
+          <button class="icon-btn" id="btnOpenSettings" title="Settings (Ctrl+,)" aria-label="Open Settings">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Native Desktop Window Controls (Active in Electron) -->
+        <div class="window-controls" id="windowControls" style="display: none;">
+          <div class="window-controls-divider"></div>
+          <button class="win-btn win-pin-btn" id="btnWinPin" title="Toggle Always on Top" aria-label="Always on Top">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="17" x2="12" y2="22"></line>
+              <path d="M5 17h14v-2l-2-3V5a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7l-2 3v2z"></path>
+            </svg>
+          </button>
+          <button class="win-btn win-min-btn" id="btnWinMin" title="Minimize Window" aria-label="Minimize">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="4" y1="12" x2="20" y2="12"></line>
+            </svg>
+          </button>
+          <button class="win-btn win-max-btn" id="btnWinMax" title="Maximize Window" aria-label="Maximize">
+            <svg class="win-max-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            </svg>
+            <svg class="win-restore-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:none;">
+              <rect x="6" y="3" width="15" height="15" rx="2"></rect>
+              <path d="M3 9v12h12"></path>
+            </svg>
+          </button>
+          <button class="win-btn win-close-btn" id="btnWinClose" title="Close" aria-label="Close">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -141,8 +178,8 @@
     <main class="main-stage" role="main">
       <div class="hero-voice-container">
         <!-- Floating Neural Voice State Indicator -->
-        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status">
-          <span class="badge-text" id="voiceStateText">ECO STANDBY</span>
+        <div class="voice-state-badge state-idle" id="voiceStateBadge" role="status" style="display: none !important;">
+          <span class="badge-text" id="voiceStateText"></span>
         </div>
 
         <!-- Central Voice Orb (Canvas Hero) -->
@@ -155,55 +192,29 @@
 
         <!-- Speech Stage & Conversation Display -->
         <div class="speech-stage">
-          <div class="user-utterance is-placeholder" id="userUtterance">
-            Say "Open Antigravity CLI" or click the orb.
-          </div>
+          <div class="user-utterance is-placeholder" id="userUtterance"></div>
 
-          <!-- Spoken Reply Box -->
+          <!-- Spoken Reply Box (Clean text only, no border or buttons) -->
           <div class="agent-response-box" id="agentResponseBox" style="display: none;">
-            <div class="agent-avatar-mini">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-              </svg>
-            </div>
             <div class="agent-response-text" id="agentResponseText"></div>
-            <div class="response-actions">
-              <button class="mini-icon-btn" id="btnReplayResponse" title="Read aloud again">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                </svg>
-              </button>
-              <button class="mini-icon-btn" id="btnCopyResponse" title="Copy text">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-              </button>
-            </div>
           </div>
           <div class="agent-action-pill" id="agentActionPill" style="display: none;"></div>
         </div>
 
         <!-- Primary Controls & Quick Input Bar -->
         <div class="controls-stage">
-          <div class="primary-voice-controls">
-            <button class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold to Talk or Click to Toggle (Alt+M or Tilde ~)" title="Hold Alt+M (or Tilde ~) to Talk, or Click to Toggle">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Quick Text Input Bar -->
+          <form class="input-prompt-bar" id="formPrompt" role="search">
+            <input type="text" class="input-prompt-field" id="inputPrompt" placeholder="Type a prompt or command... (Ctrl+K)" autocomplete="off">
+            <button type="button" class="btn-push-to-talk" id="btnPushToTalk" aria-label="Hold to Talk or Click to Toggle (Alt+M or Tilde ~)" title="Hold to Talk, or Click to Toggle">
+              <svg class="mic-icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="23"></line>
                 <line x1="8" y1="23" x2="16" y2="23"></line>
               </svg>
-              <span id="pushToTalkLabel">Hold / Tap to Talk</span>
-              <kbd class="kbd-badge" title="Hold Alt+M to talk, release to send">Alt + M</kbd>
+              <span id="pushToTalkLabel" style="display: none;"></span>
             </button>
-          </div>
-
-          <!-- Quick Text Input Bar -->
-          <form class="input-prompt-bar" id="formPrompt" role="search">
-            <input type="text" class="input-prompt-field" id="inputPrompt" placeholder="Type a prompt or command... (Ctrl+K)" autocomplete="off">
             <button type="submit" class="input-submit-btn" title="Send (Enter)" aria-label="Send">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -212,15 +223,8 @@
             </button>
           </form>
 
-          <!-- Interactive Starter Chips -->
-          <div class="empty-state-section">
-            <div class="starter-chips-row">
-              <button class="starter-chip" data-prompt="Open Antigravity CLI">Open Antigravity CLI</button>
-              <button class="starter-chip" data-prompt="Show running processes">Show running processes</button>
-              <button class="starter-chip" data-prompt="Check free disk space">Check free disk space</button>
-              <button class="starter-chip" data-prompt="What is my IP address?">What is my IP address?</button>
-              <button class="starter-chip" data-prompt="List files in current folder">List files in project</button>
-            </div>
+          <!-- Interactive Starter Chips (Hidden) -->
+          <div class="empty-state-section" style="display: none !important;">
           </div>
         </div>
       </div>
@@ -516,7 +520,12 @@
               <p class="modal-subtitle">Control & mirror your PC from anywhere</p>
             </div>
           </div>
-          <button class="icon-btn" id="btnCloseMobileConnect" title="Close (Esc)">✕</button>
+          <button class="icon-btn" id="btnCloseMobileConnect" title="Close (Esc)" aria-label="Close Mobile Connect">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
 
         <!-- Connection Mode Tabs -->
@@ -548,7 +557,8 @@
             </p>
 
             <div class="qr-code-wrapper">
-              <img id="mobileQrImg" class="qr-code-img" src="" alt="Local Wi-Fi QR Code">
+              <div id="mobileQrCanvas" class="qr-canvas-box"></div>
+              <img id="mobileQrImg" class="qr-code-img" src="" alt="Local Wi-Fi QR Code" style="display: none;">
             </div>
 
             <div class="mobile-url-box">
@@ -584,7 +594,8 @@
               </p>
 
               <div class="qr-code-wrapper">
-                <img id="remoteQrImg" class="qr-code-img" src="" alt="Remote Anywhere QR Code">
+                <div id="remoteQrCanvas" class="qr-canvas-box"></div>
+                <img id="remoteQrImg" class="qr-code-img" src="" alt="Remote Anywhere QR Code" style="display: none;">
               </div>
 
               <div class="mobile-url-box">
@@ -612,6 +623,7 @@
               <p class="inactive-desc">
                 Launch a free, encrypted Cloudflare tunnel to talk to your laptop and control your screen from outside home. No router port forwarding required.
               </p>
+              <button type="button" class="btn-primary" id="btnStartTunnelFromCard" style="margin-top: 14px; padding: 8px 18px; font-size: 12px; font-weight: 600; border-radius: 8px;">Start Remote Tunnel</button>
             </div>
           <!-- 6-Digit Security PIN Display for Laptop Host -->
           <div class="security-pin-card" id="securityPinCard">
@@ -649,7 +661,7 @@
             </div>
             <div class="mobile-tip-item">
               <span class="tip-num">2</span>
-              <div><strong>60 FPS Screen Mirror</strong>: Tap <strong>🖥️ Screen</strong> to view and click your laptop screen remotely from anywhere.</div>
+              <div><strong>60 FPS Screen Mirror</strong>: Tap <strong>Screen</strong> to view and click your laptop screen remotely from anywhere.</div>
             </div>
             <div class="mobile-tip-item">
               <span class="tip-num">3</span>
@@ -705,7 +717,7 @@
             Incorrect PIN code. Please check the 6-digit PIN on your laptop.
           </div>
           <div id="authSuccessMsg" style="display: none; color: var(--accent-emerald); font-size: 12.5px; text-align: center; font-weight: 600; margin-top: 10px;">
-            ✓ PIN Verified! Connecting...
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>PIN Verified! Connecting...
           </div>
         </div>
       </div>
@@ -726,31 +738,107 @@
               </svg>
             </div>
             <div>
-              <h3 id="settingsTitle">ECO Settings & Diagnostics</h3>
-              <p class="settings-subtitle">Manage Ollama AI, neural voices, and safety policies</p>
+              <div class="settings-eyebrow"><span></span> Workspace preferences</div>
+              <h3 id="settingsTitle">Settings</h3>
+              <p class="settings-subtitle">Fine-tune your AI workspace, voice, and safeguards.</p>
             </div>
           </div>
-          <button class="icon-btn" id="btnCloseSettings" title="Close (Esc)" aria-label="Close Settings">✕</button>
+          <button class="icon-btn" id="btnCloseSettings" title="Close (Esc)" aria-label="Close Settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
 
-        <!-- Settings Scroll Body -->
-        <div class="settings-body custom-scroll">
+        <div class="settings-layout">
+          <aside class="settings-nav" aria-label="Settings categories">
+            <div class="settings-nav-label">Configuration</div>
+            <button type="button" class="settings-nav-item is-active" data-settings-section="intelligence">
+              <span class="settings-nav-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93l-.25.04v2.03h2v2h-2v2.5a2.5 2.5 0 0 1-5 0V14H6v-2h1.5v-2.03l-.25-.04C5.4 9.58 4 7.95 4 6a4 4 0 0 1 8-4z"></path>
+                  <circle cx="12" cy="6" r="1.5"></circle>
+                </svg>
+              </span>
+              <span>Intelligence</span><span class="settings-nav-status">AI</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-section="voice">
+              <span class="settings-nav-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+              </span>
+              <span>Voice & audio</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-section="microphone">
+              <span class="settings-nav-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+              </span>
+              <span>Microphone</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-section="security">
+              <span class="settings-nav-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <path d="m9 12 2 2 4-4"></path>
+                </svg>
+              </span>
+              <span>Safety & PIN</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-section="shortcuts">
+              <span class="settings-nav-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                  <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                  <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                  <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                  <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                  <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                  <line x1="10" y1="12" x2="10.01" y2="12"></line>
+                  <line x1="14" y1="12" x2="14.01" y2="12"></line>
+                  <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                  <line x1="7" y1="16" x2="17" y2="16"></line>
+                </svg>
+              </span>
+              <span>Shortcuts</span><span class="settings-nav-status">Hotkeys</span>
+            </button>
+            <div class="settings-health-card">
+              <span class="settings-health-dot"></span>
+              <div><strong>Workspace ready</strong><small>Preferences stay on this device</small></div>
+            </div>
+          </aside>
+
+          <!-- Settings Scroll Body -->
+          <div class="settings-body custom-scroll">
           
           <!-- Section 1: AI Model & Cloud Providers -->
-          <div class="settings-section-card">
+          <div class="settings-section-card is-visible" data-settings-panel="intelligence">
             <div class="settings-section-header">
-              <span class="section-icon">🧠</span>
+              <span class="section-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93l-.25.04v2.03h2v2h-2v2.5a2.5 2.5 0 0 1-5 0V14H6v-2h1.5v-2.03l-.25-.04C5.4 9.58 4 7.95 4 6a4 4 0 0 1 8-4z"></path>
+                  <circle cx="12" cy="6" r="1.5"></circle>
+                </svg>
+              </span>
               <span class="section-title">AI Intelligence & Model Providers</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="settingModel">Active LLM Model</label>
               <span class="form-sublabel">Choose a local Ollama model or cloud model (Google Gemini, OpenAI ChatGPT, Anthropic Claude)</span>
-              <div class="select-wrap" data-field-icon="🧠">
+              <div class="select-wrap">
                 <select class="form-select" id="settingModel">
-                  <optgroup label="🖥️ Local Ollama">
+                  <optgroup label="Local Ollama">
                     <option value="gemma4:31b-cloud" data-badge="32.7B • Local" data-desc="Default tool-calling neural model" selected>gemma4:31b-cloud</option>
                   </optgroup>
-                  <optgroup label="🌐 Google Gemini">
+                  <optgroup label="Google Gemini">
                     <option value="gemini-3.6-flash" data-badge="Ultra Fast Flagship" data-desc="Google • Latest hybrid flagship (recommended)">gemini-3.6-flash</option>
                     <option value="gemini-2.5-pro" data-badge="Highest Intelligence" data-desc="Google • Complex multi-step reasoning & deep coding">gemini-2.5-pro</option>
                     <option value="gemini-2.5-flash" data-badge="Fast & Smart" data-desc="Google • High speed reasoning">gemini-2.5-flash</option>
@@ -758,13 +846,13 @@
                     <option value="gemini-1.5-pro" data-badge="2M Context" data-desc="Google • 2M token context window">gemini-1.5-pro</option>
                     <option value="gemini-1.5-flash" data-badge="Fast & Light" data-desc="Google • General purpose multi-modal">gemini-1.5-flash</option>
                   </optgroup>
-                  <optgroup label="🤖 OpenAI ChatGPT">
+                  <optgroup label="OpenAI ChatGPT">
                     <option value="gpt-4o" data-badge="Omni Flagship" data-desc="OpenAI • High intelligence omni flagship">gpt-4o</option>
                     <option value="gpt-4o-mini" data-badge="Fast & Light" data-desc="OpenAI • Fast, cost-efficient model">gpt-4o-mini</option>
                     <option value="gpt-4-turbo" data-badge="Turbo 128k" data-desc="OpenAI • High-capability Turbo model">gpt-4-turbo</option>
                     <option value="o3-mini" data-badge="Reasoning" data-desc="OpenAI • Fast STEM & coding reasoning">o3-mini</option>
                   </optgroup>
-                  <optgroup label="⚡ Anthropic Claude">
+                  <optgroup label="Anthropic Claude">
                     <option value="claude-3-7-sonnet-latest" data-badge="Hybrid Flagship" data-desc="Anthropic • State-of-the-art coding & agentic">claude-3-7-sonnet-latest</option>
                     <option value="claude-3-5-sonnet-latest" data-badge="Sonnet 3.5" data-desc="Anthropic • Powerful agentic reasoning">claude-3-5-sonnet-latest</option>
                     <option value="claude-3-5-haiku-latest" data-badge="Ultra Fast" data-desc="Anthropic • High speed & concise">claude-3-5-haiku-latest</option>
@@ -777,7 +865,11 @@
             <div class="api-keys-card" id="apiKeysCard">
               <div class="api-keys-header">
                 <div class="api-keys-header-title">
-                  <span class="api-keys-icon">🔑</span>
+                  <span class="api-keys-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5L10 10l1.5 1.5L9 14l-5 5v3h3l5-5 2.5 2.5 2.5-2.5-1.5-1.5 3.5-3.5 1.5 1.5 2-2z"></path>
+                    </svg>
+                  </span>
                   <span>Cloud Provider API Keys</span>
                 </div>
                 <span class="api-keys-subtitle">Saved locally to project .env</span>
@@ -791,7 +883,12 @@
                 </div>
                 <div class="api-key-input-wrap">
                   <input type="password" class="form-input api-key-input" id="settingGeminiKey" placeholder="AIzaSy... (from Google AI Studio)" autocomplete="off" spellcheck="false" />
-                  <button type="button" class="btn-toggle-key" data-target="settingGeminiKey" title="Toggle visibility" aria-label="Toggle key visibility">👁️</button>
+                  <button type="button" class="btn-toggle-key" data-target="settingGeminiKey" title="Toggle visibility" aria-label="Toggle key visibility">
+                    <svg class="icon-eye" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
                 </div>
                 <span class="api-key-hint">Required for Gemini models. Free keys at aistudio.google.com</span>
               </div>
@@ -804,7 +901,12 @@
                 </div>
                 <div class="api-key-input-wrap">
                   <input type="password" class="form-input api-key-input" id="settingOpenAiKey" placeholder="sk-... (from platform.openai.com)" autocomplete="off" spellcheck="false" />
-                  <button type="button" class="btn-toggle-key" data-target="settingOpenAiKey" title="Toggle visibility" aria-label="Toggle key visibility">👁️</button>
+                  <button type="button" class="btn-toggle-key" data-target="settingOpenAiKey" title="Toggle visibility" aria-label="Toggle key visibility">
+                    <svg class="icon-eye" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
                 </div>
                 <span class="api-key-hint">Required for GPT-4o, o3-mini, and ChatGPT models</span>
               </div>
@@ -817,7 +919,12 @@
                 </div>
                 <div class="api-key-input-wrap">
                   <input type="password" class="form-input api-key-input" id="settingAnthropicKey" placeholder="sk-ant-... (from console.anthropic.com)" autocomplete="off" spellcheck="false" />
-                  <button type="button" class="btn-toggle-key" data-target="settingAnthropicKey" title="Toggle visibility" aria-label="Toggle key visibility">👁️</button>
+                  <button type="button" class="btn-toggle-key" data-target="settingAnthropicKey" title="Toggle visibility" aria-label="Toggle key visibility">
+                    <svg class="icon-eye" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
                 </div>
                 <span class="api-key-hint">Required for Claude 3.7 / 3.5 Sonnet and Haiku models</span>
               </div>
@@ -825,15 +932,21 @@
           </div>
 
           <!-- Section 2: Neural Voice & TTS -->
-          <div class="settings-section-card">
+          <div class="settings-section-card" data-settings-panel="voice">
             <div class="settings-section-header">
-              <span class="section-icon">🎙️</span>
+              <span class="section-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+              </span>
               <span class="section-title">Voice & Speech Synthesis</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="settingTtsBackend">Voice Engine Backend</label>
               <span class="form-sublabel">Piper (offline neural), Edge (online natural), or SAPI (robotic)</span>
-              <div class="select-wrap" data-field-icon="⚙️">
+              <div class="select-wrap">
                 <select class="form-select" id="settingTtsBackend">
                   <option value="auto" data-badge="Recommended" data-desc="Intelligent fallback (Piper → Edge → SAPI)" selected>Auto: Piper → Edge → SAPI</option>
                   <option value="piper" data-badge="Offline Neural" data-desc="High speed, private ONNX synthesis on CPU">Piper (Offline Neural)</option>
@@ -850,10 +963,13 @@
                   <span class="form-sublabel">Character and accent profile for spoken replies</span>
                 </div>
                 <button class="btn-secondary btn-mini" id="btnTestVoice" title="Preview selected voice">
-                  <span>▶ Test Voice</span>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                  <span>Test Voice</span>
                 </button>
               </div>
-              <div class="select-wrap" data-field-icon="🎙️">
+              <div class="select-wrap">
                 <select class="form-select" id="settingVoice">
                   <option value="" data-badge="Neural" data-desc="System default neural voice" selected>Default System Voice</option>
                   <option value="en_US-hfc_female-medium.onnx" data-badge="Offline Neural" data-desc="Piper • Fast & clear female voice" data-engine="piper">Piper: en_US-hfc_female</option>
@@ -884,7 +1000,7 @@
             <div class="form-group">
               <label class="form-label" for="settingSpeakerTarget">Speaker Output Destination</label>
               <span class="form-sublabel">Controls where the spoken response plays</span>
-              <div class="select-wrap" data-field-icon="🔊">
+              <div class="select-wrap">
                 <select class="form-select" id="settingSpeakerTarget">
                   <option value="auto" data-badge="Smart Route" data-desc="Phone responds on phone, laptop on laptop" selected>Auto (Originating Device Destination)</option>
                   <option value="phone" data-badge="Mobile Only" data-desc="Stream spoken reply directly to mobile speaker">Phone Speaker Only</option>
@@ -896,9 +1012,16 @@
           </div>
 
           <!-- Section 2.5: Microphone & Audio Input -->
-          <div class="settings-section-card">
+          <div class="settings-section-card" data-settings-panel="microphone">
             <div class="settings-section-header">
-              <span class="section-icon">🎙️</span>
+              <span class="section-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+              </span>
               <span class="section-title">Microphone & Audio Input</span>
             </div>
 
@@ -909,10 +1032,16 @@
                   <span class="form-sublabel">Select Bluetooth headset or laptop microphone</span>
                 </div>
                 <button class="btn-secondary btn-mini" id="btnTestMic" type="button" title="Test audio signal on this microphone">
-                  <span>🎙️ Test Mic</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                  <span>Test Mic</span>
                 </button>
               </div>
-              <div class="select-wrap" data-field-icon="🎙️">
+              <div class="select-wrap">
                 <select class="form-select" id="settingMicDevice">
                   <option value="-1" data-badge="Auto" data-desc="System default audio input device" selected>Auto-Detect Bluetooth / Default Microphone</option>
                 </select>
@@ -932,7 +1061,7 @@
             <div class="form-group">
               <label class="form-label" for="settingContinuousListening">Hands-Free Continuous Listening</label>
               <span class="form-sublabel">Automatically listen for your voice continuously without needing to tap the mic</span>
-              <div class="select-wrap" data-field-icon="🎧">
+              <div class="select-wrap">
                 <select class="form-select" id="settingContinuousListening">
                   <option value="false" data-badge="Manual" data-desc="Hold / tap mic to speak • Saves battery and privacy" selected>Push-to-Talk / Click to Speak</option>
                   <option value="true" data-badge="Always On" data-desc="Hands-free continuous listening via Silero VAD">Continuous Hands-Free Listening</option>
@@ -942,15 +1071,20 @@
           </div>
 
           <!-- Section 3: Safety & Environment -->
-          <div class="settings-section-card">
+          <div class="settings-section-card" data-settings-panel="security">
             <div class="settings-section-header">
-              <span class="section-icon">🛡️</span>
+              <span class="section-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <polyline points="9 12 11 14 15 10"></polyline>
+                </svg>
+              </span>
               <span class="section-title">Safety & System Execution</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="settingConfirmMode">Safety Confirmation Gate</label>
               <span class="form-sublabel">Policy applied before running risky commands</span>
-              <div class="select-wrap" data-field-icon="🛡️">
+              <div class="select-wrap">
                 <select class="form-select" id="settingConfirmMode">
                   <option value="terminal" data-badge="Recommended" data-desc="Interactive popup authorization before execution" selected>Interactive Modal & Terminal Prompt</option>
                   <option value="voice" data-badge="Hands-free" data-desc="Spoken verbal confirmation prompt ('Yes/No')">Spoken Voice Confirmation</option>
@@ -963,19 +1097,183 @@
             <div class="form-group">
               <label class="form-label" for="settingShell">Default Execution Shell</label>
               <span class="form-sublabel">Terminal environment for local commands</span>
-              <div class="select-wrap" data-field-icon="💻">
+              <div class="select-wrap">
                 <select class="form-select" id="settingShell">
                   <option value="powershell" data-badge="Modern" data-desc="PowerShell 7 console environment" selected>PowerShell 7</option>
                   <option value="cmd" data-badge="Legacy" data-desc="Classic Windows Command Prompt interpreter">Command Prompt (cmd.exe)</option>
                 </select>
               </div>
             </div>
+
+            <!-- Remote Access Security PIN -->
+            <div class="form-group pin-setting-group">
+              <div class="form-label-row">
+                <label class="form-label" for="settingPinCode">Remote Security PIN</label>
+                <span class="pin-validation-badge" id="pinValidationBadge">6 digits</span>
+              </div>
+              <span class="form-sublabel">6-digit passcode required for phones and remote tunnels to connect to this PC</span>
+              <div class="pin-setting-control-wrap">
+                <div class="pin-input-box">
+                  <svg class="pin-lock-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  <input
+                    type="password"
+                    id="settingPinCode"
+                    class="form-input pin-setting-input"
+                    maxlength="6"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    placeholder="••••••"
+                    title="Enter 6-digit numeric PIN"
+                  />
+                  <button type="button" class="btn-pin-action" id="btnTogglePinVisibility" title="Show / Hide PIN" aria-label="Toggle PIN visibility">
+                    <span id="pinVisibilityIcon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+                <button type="button" class="btn-pin-action btn-pin-generate" id="btnSettingsGenPin" title="Generate fresh random 6-digit PIN">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                  </svg>
+                  <span>Roll PIN</span>
+                </button>
+              </div>
+              <p class="pin-setting-hint">
+                Only numeric digits (0-9) are accepted. Enter this PIN on your phone when prompted.
+              </p>
+            </div>
           </div>
 
+          <!-- Section 4: Keyboard Shortcuts & System Hotkeys -->
+          <div class="settings-section-card" data-settings-panel="shortcuts">
+            <div class="settings-section-header">
+              <span class="section-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                  <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                  <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                  <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                  <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                  <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                  <line x1="10" y1="12" x2="10.01" y2="12"></line>
+                  <line x1="14" y1="12" x2="14.01" y2="12"></line>
+                  <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                  <line x1="7" y1="16" x2="17" y2="16"></line>
+                </svg>
+              </span>
+              <span class="section-title">Keyboard Shortcuts & Hotkeys</span>
+            </div>
+
+            <div class="shortcuts-grid">
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Push-to-Talk / Toggle Voice</strong>
+                  <span>Hold to speak or tap once to toggle microphone listening</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Alt</kbd> + <kbd class="kbd-pill">M</kbd>
+                  <span class="shortcut-or">or</span>
+                  <kbd class="kbd-pill">~</kbd>
+                  <span class="shortcut-or">or</span>
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">Space</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Focus Prompt / Search Bar</strong>
+                  <span>Jump cursor directly into the prompt command field</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">K</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Interrupt / Stop / Close</strong>
+                  <span>Stop spoken reply, abort command execution, or close any modal/drawer</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Esc</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Command History Drawer</strong>
+                  <span>Toggle conversation log and previous requests</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">H</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Terminal Console Runner</strong>
+                  <span>Open real-time command output and terminal runner drawer</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">J</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Activity Timeline Drawer</strong>
+                  <span>Inspect chronologically ordered agent lifecycle & tool execution trace</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">T</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Live Laptop Screen Mirror</strong>
+                  <span>Toggle live display casting to mobile companion / phone</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">M</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Settings & Configuration</strong>
+                  <span>Open AI models, voice profiles, API keys, and security preferences</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">,</kbd>
+                </div>
+              </div>
+
+              <div class="shortcut-row">
+                <div class="shortcut-desc">
+                  <strong>Clear Conversation History</strong>
+                  <span>Wipe previous conversation history and reset model context</span>
+                </div>
+                <div class="shortcut-keys">
+                  <kbd class="kbd-pill">Ctrl</kbd> + <kbd class="kbd-pill">L</kbd>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          </div>
         </div>
 
         <!-- Settings Footer Actions -->
         <div class="settings-footer">
+          <span class="settings-save-hint">Changes apply to this workspace</span>
           <button class="btn-secondary" id="btnCancelSettings" style="border-radius: var(--radius-sm);" title="Discard Changes (Esc)">Cancel</button>
           <button class="btn-save-settings" id="btnSaveSettings" title="Save & Apply Settings (Enter)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1002,7 +1300,8 @@
   </div>
 
   <!-- Scripts -->
+  <script src="/static/qrcode.min.js"></script>
   <script src="/static/orb.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20261001_remote_qr"></script>
 </body>
 </html>

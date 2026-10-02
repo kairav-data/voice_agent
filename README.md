@@ -24,7 +24,9 @@ mic ──► faster-whisper ──► Ollama (/api/chat + tools) ──► neur
 ## Run
 
 ```bash
-run_ui.bat                                      # launch the futuristic Web Command Center UI
+run_desktop.bat                                 # launch the best-in-class Electron Desktop Application
+npm start                                       # same, runs Electron desktop client
+run_ui.bat                                      # launch the Web Command Center UI
 run.bat --ui                                    # same, opens browser / native Edge window
 run.bat                                         # CLI console voice loop
 ```
@@ -51,8 +53,18 @@ run.bat --list-voices                           # names you can pass to --voice
   - `Ctrl + L`: Clear conversation history
   - `Ctrl + ,`: Settings & model/voice switcher
   - `Ctrl + T`: Activity stream drawer
-  - `Ctrl + H`: Past queries drawer
-- **Settings Panel**: Live Ollama model selector, TTS engine & voice tester with sample speech playback, speaking rate slider, shell selection (PowerShell / CMD), and confirmation policy.
+- **Electron Desktop Features**:
+  - **Windows 11 Fluent Glass Design**: Frameless titlebar, minimize/maximize/close, always-on-top pin toggle.
+  - **System Tray Integration**: Background state indicator, quick mute, show/hide, launch on Windows startup.
+  - **Global Shortcuts (Any Application)**:
+    - `Ctrl + Shift + Space`: Global Push-to-Talk (trigger voice assistant anywhere)
+    - `Ctrl + Shift + K`: Summon / Focus ECOWHISPER
+    - `Ctrl + Shift + M`: Global Microphone Mute
+  - **Native Notifications**: Desktop popups for background command approvals and critical alerts.
+- **Installer Generation**:
+  ```bash
+  npm run dist                                  # builds ECOWHISPER_Setup_v2.5.0.exe installer in dist_installer_electron/
+  ```
 
 Say or type `exit` to quit, `reset` to clear the conversation history.
 

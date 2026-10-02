@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 
@@ -223,7 +224,13 @@ def main() -> None:
     p.add_argument("--demo-voices", action="store_true",
                    help="speak a sample line through every voice so you can pick one")
     p.add_argument("--wake", metavar="WORD", help="only act on utterances containing this word")
+    p.add_argument("--no-auto-open", action="store_true", help="disable automatic browser opening")
     args = p.parse_args()
+
+    # When launched without flags (e.g. double-clicked standalone .exe or desktop shortcut),
+    # launch the Futuristic Web Command Center by default.
+    if len(sys.argv) == 1:
+        args.ui = True
 
     if args.list_devices:
         from audio import Recorder
@@ -246,7 +253,8 @@ def main() -> None:
 
     if args.ui:
         from ui_server import run_server
-        run_server(cfg)
+        auto_open = not getattr(args, "no_auto_open", False) and os.environ.get("VA_AUTO_OPEN", "1") != "0"
+        run_server(cfg, auto_open=auto_open)
         return
 
     if args.once:

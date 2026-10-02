@@ -58,6 +58,38 @@
   let currentModelName = "gemma4:31b-cloud";
   let isLlmActive = false;
 
+  // Centralized Vector SVG Icons System (Feather/Lucide style, zero-emoji)
+  const SVG_ICONS = {
+    brain: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.54z"></path><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.54z"></path></svg>`,
+    settings: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
+    mic: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`,
+    voice: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v4"></path><path d="M6 7v10"></path><path d="M10 3v18"></path><path d="M14 8v8"></path><path d="M18 5v14"></path><path d="M22 10v4"></path></svg>`,
+    speaker: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`,
+    headphones: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>`,
+    shield: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>`,
+    terminal: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>`,
+    server: `<svg class="cat-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>`,
+    sparkles: `<svg class="cat-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c0 4.5-3.5 8-8 8 4.5 0 8 3.5 8 8 0-4.5 3.5-8 8-8-4.5 0-8-3.5-8-8z"></path></svg>`,
+    bot: `<svg class="cat-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4M8 16h.01M16 16h.01"></path></svg>`,
+    zap: `<svg class="cat-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
+    eye: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+    eyeOff: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`,
+    check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+    checkSm: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:3px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+    spinner: `<svg class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-linecap="round"></path></svg>`,
+    play: `<svg class="toast-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`,
+    externalLink: `<svg class="toast-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`,
+    lock: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
+    alertTriangle: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`
+  };
+
+  const CATEGORY_ICONS = {
+    "Local Ollama": SVG_ICONS.server,
+    "Google Gemini": SVG_ICONS.sparkles,
+    "OpenAI ChatGPT": SVG_ICONS.bot,
+    "Anthropic Claude": SVG_ICONS.zap,
+  };
+
   function updateLlmIndicator(modelName, online, active, customText) {
     if (modelName) {
       currentModelName = modelName;
@@ -177,19 +209,13 @@
       ]
     };
 
-    const catHeaders = {
-      "Local Ollama": "🖥️ Local Ollama",
-      "Google Gemini": "🌐 Google Gemini",
-      "OpenAI ChatGPT": "🤖 OpenAI ChatGPT",
-      "Anthropic Claude": "⚡ Anthropic Claude",
-    };
-
     for (const [catName, models] of Object.entries(categories)) {
       if (!models || models.length === 0) continue;
 
       const groupTitle = document.createElement("div");
       groupTitle.className = "quick-model-group-title";
-      groupTitle.textContent = catHeaders[catName] || catName;
+      const iconSvg = CATEGORY_ICONS[catName] || "";
+      groupTitle.innerHTML = `${iconSvg}<span>${escapeHtml(catName)}</span>`;
       quickModelList.appendChild(groupTitle);
 
       models.forEach((m) => {
@@ -390,6 +416,7 @@
 
   const mobileConnectModal = document.getElementById("mobileConnectModal");
   const btnCloseMobileConnect = document.getElementById("btnCloseMobileConnect");
+  const mobileQrCanvas = document.getElementById("mobileQrCanvas");
   const mobileQrImg = document.getElementById("mobileQrImg");
   const mobileUrlDisplay = document.getElementById("mobileUrlDisplay");
   const btnCopyMobileUrl = document.getElementById("btnCopyMobileUrl");
@@ -402,8 +429,10 @@
   const remoteTunnelStatusPill = document.getElementById("remoteTunnelStatusPill");
   const remoteTunnelSubtext = document.getElementById("remoteTunnelSubtext");
   const btnToggleTunnel = document.getElementById("btnToggleTunnel");
+  const btnStartTunnelFromCard = document.getElementById("btnStartTunnelFromCard");
   const remoteActiveContent = document.getElementById("remoteActiveContent");
   const remoteInactiveContent = document.getElementById("remoteInactiveContent");
+  const remoteQrCanvas = document.getElementById("remoteQrCanvas");
   const remoteQrImg = document.getElementById("remoteQrImg");
   const remoteUrlDisplay = document.getElementById("remoteUrlDisplay");
   const btnCopyRemoteUrl = document.getElementById("btnCopyRemoteUrl");
@@ -602,24 +631,34 @@
 
   // Initialize Voice Orb
   let orb = null;
-  window.addEventListener("DOMContentLoaded", () => {
-    orb = new VoiceOrb("orbCanvas");
-    updateState("idle");
-  });
+  function initOrb() {
+    if (!orb && typeof VoiceOrb !== "undefined") {
+      const canvas = document.getElementById("orbCanvas");
+      if (canvas) {
+        orb = new VoiceOrb("orbCanvas");
+        updateState("idle");
+      }
+    }
+  }
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", initOrb);
+  } else {
+    initOrb();
+  }
 
-  // State Machine Labels
+  // State Machine Labels (Hidden from UI per user request)
   const STATE_LABELS = {
-    idle: "ECO STANDBY",
-    listening: "LISTENING...",
-    hearing: "HEARING VOICE",
-    processing: "PROCESSING AUDIO",
-    thinking: "THINKING...",
-    tool: "PREPARING ACTION...",
-    confirmation: "AUTHORIZATION REQUIRED",
-    executing: "EXECUTING ACTION...",
-    speaking: "SPEAKING...",
-    success: "ACTION COMPLETE",
-    error: "ERROR ENCOUNTERED",
+    idle: "",
+    listening: "",
+    hearing: "",
+    processing: "",
+    thinking: "",
+    tool: "",
+    confirmation: "",
+    executing: "",
+    speaking: "",
+    success: "",
+    error: "",
   };
 
   let currentState = "idle";
@@ -629,10 +668,33 @@
     currentState = newState;
     if (orb) orb.setState(newState);
 
-    // Update State Badge & Dynamic Beacon
-    stateBadge.className = `voice-state-badge state-${newState}`;
-    stateBadge.style.display = "inline-flex";
-    stateBadgeText.textContent = STATE_LABELS[newState] || newState.toUpperCase();
+    // State Badge permanently hidden: remove Thinking, Executing, Speaking text from UI
+    if (stateBadge) {
+      stateBadge.className = `voice-state-badge state-${newState}`;
+      stateBadge.style.display = "none";
+    }
+    if (stateBadgeText) {
+      stateBadgeText.textContent = "";
+    }
+
+    // Auto-clear previous response text when new input is being processed
+    if (newState === "thinking" || newState === "processing" || newState === "executing") {
+      if (agentResponseBox) agentResponseBox.style.display = "none";
+      if (agentResponseText) agentResponseText.textContent = "";
+    }
+
+    // Electron Desktop Integration: Update Tray Status & Notifications
+    if (window.electronAPI) {
+      if (typeof window.electronAPI.updateTrayStatus === "function") {
+        window.electronAPI.updateTrayStatus(newState.toUpperCase());
+      }
+      if (newState === "confirmation" && typeof window.electronAPI.showNotification === "function") {
+        window.electronAPI.showNotification({
+          title: "ECOWHISPER — Action Authorization",
+          body: "A system command is pending your approval.",
+        });
+      }
+    }
 
     // Auto-return from success to standby after 2.8s
     if (newState === "success") {
@@ -641,25 +703,14 @@
       }, 2800);
     }
 
-    // Update Center Label & Mic Button
+    // Update Mic Button
     const pushToTalkLabel = document.getElementById("pushToTalkLabel");
     if (newState === "listening") {
-      if (orbCenterLabel) orbCenterLabel.textContent = "Listening";
       btnPushToTalk.classList.add("active");
-      if (pushToTalkLabel) pushToTalkLabel.textContent = isMobileDevice ? "Listening... (Tap to Send)" : "Listening... (Release to Send)";
-    } else if (newState === "thinking") {
-      if (orbCenterLabel) orbCenterLabel.textContent = "Thinking";
-      btnPushToTalk.classList.remove("active");
-      if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
-    } else if (newState === "speaking") {
-      if (orbCenterLabel) orbCenterLabel.textContent = "Speaking";
-      btnPushToTalk.classList.remove("active");
-      if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     } else {
-      if (orbCenterLabel) orbCenterLabel.textContent = "Press to Talk";
       btnPushToTalk.classList.remove("active");
-      if (pushToTalkLabel) pushToTalkLabel.textContent = "Unmute / Talk";
     }
+    if (pushToTalkLabel) pushToTalkLabel.textContent = "";
 
     // Toggle Interrupt button visibility during active speech or execution
     if (["speaking", "executing", "thinking", "tool"].includes(newState)) {
@@ -682,10 +733,38 @@
   let socket = null;
   let reconnectTimer = null;
   let isAuthBlocked = false;
+  let currentHostPin = "";
+
+  function updatePinBadge() {
+    const inputPin = document.getElementById("settingPinCode");
+    const badgePin = document.getElementById("pinValidationBadge");
+    if (!inputPin || !badgePin) return;
+    const len = inputPin.value.length;
+    if (len === 6) {
+      badgePin.innerHTML = `${SVG_ICONS.checkSm}<span>Valid PIN</span>`;
+      badgePin.className = "pin-validation-badge is-valid";
+      inputPin.classList.remove("error");
+    } else if (len === 0) {
+      badgePin.textContent = "6 digits";
+      badgePin.className = "pin-validation-badge";
+    } else {
+      const remaining = 6 - len;
+      badgePin.textContent = `${remaining} more digit${remaining > 1 ? "s" : ""}`;
+      badgePin.className = "pin-validation-badge is-incomplete";
+    }
+  }
 
   function updateLaptopPinDisplay(pin) {
-    if (!laptopPinDisplay) return;
     const clean = String(pin || "").trim();
+    if (clean.length === 6 && clean !== "••••••") {
+      currentHostPin = clean;
+      const inputPin = document.getElementById("settingPinCode");
+      if (inputPin && document.activeElement !== inputPin) {
+        inputPin.value = clean;
+        updatePinBadge();
+      }
+    }
+    if (!laptopPinDisplay) return;
     if (clean.length === 6) {
       laptopPinDisplay.innerHTML = "";
       for (let i = 0; i < 6; i++) {
@@ -992,6 +1071,8 @@
 
     } else if (type === "transcription_result") {
       userUtterance.textContent = `"${msg.text}"`;
+      if (agentResponseBox) agentResponseBox.style.display = "none";
+      if (agentResponseText) agentResponseText.textContent = "";
     } else if (type === "screen_frame") {
       if (screenMirrorOpen && screenStreamImg) {
         lastWsFrameTime = performance.now();
@@ -1071,7 +1152,7 @@
 
     } else if (type === "history_cleared") {
       historyContent.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 40px;">No conversation history.</p>';
-      userUtterance.textContent = 'Say "Open VS Code" or click the orb.';
+      userUtterance.textContent = '';
       userUtterance.classList.add("is-placeholder");
       agentResponseBox.style.display = "none";
       toolActionCard.style.display = "none";
@@ -1262,7 +1343,10 @@
     talkStartTime = Date.now();
     btnPushToTalk.classList.add("active");
     const label = document.getElementById("pushToTalkLabel");
-    if (label) label.textContent = "Listening... (Release to Send)";
+    if (label) label.textContent = "";
+
+    // Immediately trigger active visual state on Orb & UI
+    updateState("listening");
 
     if (isMobileDevice) {
       startPhoneRecording();
@@ -1276,7 +1360,10 @@
     isTalking = false;
     btnPushToTalk.classList.remove("active");
     const label = document.getElementById("pushToTalkLabel");
-    if (label) label.textContent = "Hold / Tap to Talk";
+    if (label) label.textContent = "";
+
+    // Smoothly shift to processing state
+    updateState("processing");
 
     if (isMobileDevice) {
       stopPhoneRecording();
@@ -1297,6 +1384,7 @@
   btnPushToTalk.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return; // primary mouse button only
     e.preventDefault();
+    try { btnPushToTalk.setPointerCapture(e.pointerId); } catch (_) {}
     isPointerHeld = true;
     if (isTalking) {
       stopTalking();
@@ -1308,23 +1396,46 @@
   btnPushToTalk.addEventListener("pointerup", (e) => {
     if (!isPointerHeld) return;
     isPointerHeld = false;
+    try { btnPushToTalk.releasePointerCapture(e.pointerId); } catch (_) {}
     const elapsed = Date.now() - talkStartTime;
-    // If held for more than 350ms, this was a push-to-talk hold: release to send!
-    if (elapsed > 350 && isTalking) {
+    // If held for more than 400ms, this was a push-to-talk hold: release to send!
+    if (elapsed > 400 && isTalking) {
       stopTalking();
     }
   });
 
-  btnPushToTalk.addEventListener("pointercancel", () => {
+  btnPushToTalk.addEventListener("pointercancel", (e) => {
     if (isPointerHeld) {
       isPointerHeld = false;
-      if (isTalking) stopTalking();
+      try { btnPushToTalk.releasePointerCapture(e.pointerId); } catch (_) {}
     }
   });
 
-  orbWrapper.addEventListener("click", () => {
-    toggleTalking();
+  // Standard click fallback for keyboard/assistive triggers or programmatic .click()
+  btnPushToTalk.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (Date.now() - talkStartTime > 250) {
+      toggleTalking();
+    }
   });
+
+  if (orbWrapper) {
+    orbWrapper.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTalking();
+    });
+  }
+
+  const orbCanvasEl = document.getElementById("orbCanvas");
+  if (orbCanvasEl) {
+    orbCanvasEl.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTalking();
+    });
+  }
 
   btnStopInterrupt.addEventListener("click", () => {
     isTalking = false;
@@ -1508,6 +1619,8 @@
     inputPrompt.value = "";
     userUtterance.textContent = `"${text}"`;
     userUtterance.classList.remove("is-placeholder");
+    if (agentResponseBox) agentResponseBox.style.display = "none";
+    if (agentResponseText) agentResponseText.textContent = "";
     sendWS("send_text", { text });
   });
 
@@ -1670,14 +1783,14 @@
     let activeWrap = null;
 
     const ICONS_BY_ID = {
-      settingModel: "🧠",
-      settingTtsBackend: "⚙️",
-      settingVoice: "🎙️",
-      settingSpeakerTarget: "🔊",
-      settingMicDevice: "🎙️",
-      settingContinuousListening: "🎧",
-      settingConfirmMode: "🛡️",
-      settingShell: "💻",
+      settingModel: SVG_ICONS.brain,
+      settingTtsBackend: SVG_ICONS.settings,
+      settingVoice: SVG_ICONS.voice,
+      settingSpeakerTarget: SVG_ICONS.speaker,
+      settingMicDevice: SVG_ICONS.mic,
+      settingContinuousListening: SVG_ICONS.headphones,
+      settingConfirmMode: SVG_ICONS.shield,
+      settingShell: SVG_ICONS.terminal,
     };
 
     function closeAll() {
@@ -1716,7 +1829,7 @@
       if (oldMenu) oldMenu.remove();
 
       // Determine field icon
-      const fieldIcon = wrap.dataset.fieldIcon || ICONS_BY_ID[nativeSelect.id] || "⚙️";
+      const fieldIcon = wrap.dataset.fieldIcon || ICONS_BY_ID[nativeSelect.id] || SVG_ICONS.settings;
 
       // 1. Create Trigger Button
       const trigger = document.createElement("button");
@@ -1815,7 +1928,8 @@
             lastGroupName = groupName;
             const header = document.createElement("div");
             header.className = "eco-optgroup-header";
-            header.textContent = groupName;
+            const iconSvg = CATEGORY_ICONS[groupName] || "";
+            header.innerHTML = `${iconSvg}<span>${escapeHtml(groupName)}</span>`;
             optionsWrap.appendChild(header);
           }
 
@@ -2114,8 +2228,27 @@
   }
 
   // Settings Modal & Hydration
+  function showSettingsSection(sectionName) {
+    const navItems = document.querySelectorAll("[data-settings-section]");
+    const panels = document.querySelectorAll("[data-settings-panel]");
+    navItems.forEach((item) => {
+      const isActive = item.dataset.settingsSection === sectionName;
+      item.classList.toggle("is-active", isActive);
+      item.setAttribute("aria-current", isActive ? "page" : "false");
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("is-visible", panel.dataset.settingsPanel === sectionName);
+    });
+    EcoSelect.closeAll();
+  }
+
+  document.querySelectorAll("[data-settings-section]").forEach((item) => {
+    item.addEventListener("click", () => showSettingsSection(item.dataset.settingsSection));
+  });
+
   btnOpenSettings.addEventListener("click", async () => {
     settingsModal.classList.add("active");
+    showSettingsSection("intelligence");
     EcoSelect.syncAll();
     loadSettingsData();
   });
@@ -2171,17 +2304,10 @@
         selectModel.innerHTML = "";
 
         if (resModels.categories && Object.keys(resModels.categories).length > 0) {
-          const categoryDisplayNames = {
-            "Local Ollama": "🖥️ Local Ollama",
-            "Google Gemini": "🌐 Google Gemini",
-            "OpenAI ChatGPT": "🤖 OpenAI ChatGPT",
-            "Anthropic Claude": "⚡ Anthropic Claude",
-          };
-
           for (const [catName, catModels] of Object.entries(resModels.categories)) {
             if (!catModels || catModels.length === 0) continue;
             const optgroup = document.createElement("optgroup");
-            optgroup.label = categoryDisplayNames[catName] || catName;
+            optgroup.label = catName;
 
             catModels.forEach((m) => {
               const opt = document.createElement("option");
@@ -2224,7 +2350,7 @@
         if (badgeGemini) {
           const hasVal = geminiInput && geminiInput.value.trim().length > 0;
           if (apiKeysState.has_gemini_key || hasVal) {
-            badgeGemini.textContent = "✓ Configured";
+            badgeGemini.innerHTML = `${SVG_ICONS.checkSm}<span>Configured</span>`;
             badgeGemini.className = "api-key-badge is-set";
           } else {
             badgeGemini.textContent = "Not Set";
@@ -2234,7 +2360,7 @@
         if (badgeOpenAi) {
           const hasVal = openaiInput && openaiInput.value.trim().length > 0;
           if (apiKeysState.has_openai_key || hasVal) {
-            badgeOpenAi.textContent = "✓ Configured";
+            badgeOpenAi.innerHTML = `${SVG_ICONS.checkSm}<span>Configured</span>`;
             badgeOpenAi.className = "api-key-badge is-set";
           } else {
             badgeOpenAi.textContent = "Not Set";
@@ -2244,7 +2370,7 @@
         if (badgeAnthropic) {
           const hasVal = anthropicInput && anthropicInput.value.trim().length > 0;
           if (apiKeysState.has_anthropic_key || hasVal) {
-            badgeAnthropic.textContent = "✓ Configured";
+            badgeAnthropic.innerHTML = `${SVG_ICONS.checkSm}<span>Configured</span>`;
             badgeAnthropic.className = "api-key-badge is-set";
           } else {
             badgeAnthropic.textContent = "Not Set";
@@ -2268,7 +2394,7 @@
       if (openaiInput) openaiInput.addEventListener("input", updateKeyBadges);
       if (anthropicInput) anthropicInput.addEventListener("input", updateKeyBadges);
 
-      // Visibility toggle buttons (👁️)
+      // Visibility toggle buttons (Vector SVG Eye / EyeOff)
       document.querySelectorAll(".btn-toggle-key").forEach((btn) => {
         btn.onclick = (e) => {
           e.preventDefault();
@@ -2277,11 +2403,11 @@
           if (!inp) return;
           if (inp.type === "password") {
             inp.type = "text";
-            btn.textContent = "🙈";
+            btn.innerHTML = SVG_ICONS.eyeOff;
             btn.title = "Hide key";
           } else {
             inp.type = "password";
-            btn.textContent = "👁️";
+            btn.innerHTML = SVG_ICONS.eye;
             btn.title = "Show key";
           }
         };
@@ -2411,6 +2537,17 @@
         if (resStatus.safety?.default_shell) selectShell.value = resStatus.safety.default_shell;
         EcoSelect.sync(selectShell);
       }
+
+      // 9. Remote Security PIN
+      const inputPin = document.getElementById("settingPinCode");
+      if (inputPin) {
+        const pinCode = resStatus.safety?.pin_code || currentHostPin || "";
+        if (pinCode && pinCode !== "••••••") {
+          inputPin.value = pinCode;
+          currentHostPin = pinCode;
+        }
+        updatePinBadge();
+      }
     } catch (e) {
       console.error("[settings] Failed to load settings:", e);
     }
@@ -2429,6 +2566,21 @@
     const openaiKeyVal = document.getElementById("settingOpenAiKey")?.value.trim() || "";
     const anthropicKeyVal = document.getElementById("settingAnthropicKey")?.value.trim() || "";
 
+    const pinInput = document.getElementById("settingPinCode");
+    const pinVal = pinInput ? pinInput.value.trim() : "";
+    if (pinInput && pinVal.length > 0) {
+      if (pinVal.length !== 6 || !/^\d{6}$/.test(pinVal)) {
+        pinInput.classList.add("error");
+        const badgePin = document.getElementById("pinValidationBadge");
+        if (badgePin) {
+          badgePin.textContent = "Must be 6 digits";
+          badgePin.className = "pin-validation-badge is-incomplete";
+        }
+        pinInput.focus();
+        return;
+      }
+    }
+
     const payload = {
       model: chosenModel,
       tts_backend: document.getElementById("settingTtsBackend").value,
@@ -2441,6 +2593,10 @@
       continuous_listening: continuousVal === "true",
     };
 
+    if (pinVal && pinVal.length === 6) {
+      payload.pin_code = pinVal;
+    }
+
     if (geminiKeyVal) payload.gemini_api_key = geminiKeyVal;
     if (openaiKeyVal) payload.openai_api_key = openaiKeyVal;
     if (anthropicKeyVal) payload.anthropic_api_key = anthropicKeyVal;
@@ -2448,7 +2604,7 @@
     const saveBtn = document.getElementById("btnSaveSettings");
     const origHTML = saveBtn.innerHTML;
     saveBtn.disabled = true;
-    saveBtn.innerHTML = `<span>⏳ Saving...</span>`;
+    saveBtn.innerHTML = `${SVG_ICONS.spinner}<span>Saving...</span>`;
 
     try {
       const resp = await authFetch("/api/settings", {
@@ -2459,6 +2615,10 @@
       const data = resp.ok ? await resp.json() : {};
       const updatedConf = data.config || {};
       const llmConf = updatedConf.llm || updatedConf.ollama || {};
+
+      if (payload.pin_code) {
+        updateLaptopPinDisplay(payload.pin_code);
+      }
 
       if (payload.gemini_api_key) cachedApiKeys.has_gemini_key = true;
       if (payload.openai_api_key) cachedApiKeys.has_openai_key = true;
@@ -2500,6 +2660,53 @@
     btnCancelSettings.addEventListener("click", () => {
       settingsModal.classList.remove("active");
       EcoSelect.closeAll();
+    });
+  }
+
+  // Remote Security PIN Controls in Settings
+  const inputSettingPin = document.getElementById("settingPinCode");
+  if (inputSettingPin) {
+    inputSettingPin.addEventListener("input", (e) => {
+      const sanitized = e.target.value.replace(/\D/g, "").slice(0, 6);
+      if (e.target.value !== sanitized) {
+        e.target.value = sanitized;
+      }
+      updatePinBadge();
+    });
+  }
+
+  const btnTogglePin = document.getElementById("btnTogglePinVisibility");
+  if (btnTogglePin) {
+    btnTogglePin.addEventListener("click", () => {
+      const inp = document.getElementById("settingPinCode");
+      const icon = document.getElementById("pinVisibilityIcon");
+      if (!inp) return;
+      if (inp.type === "password") {
+        inp.type = "text";
+        if (icon) icon.innerHTML = SVG_ICONS.eyeOff;
+        btnTogglePin.title = "Hide PIN";
+      } else {
+        inp.type = "password";
+        if (icon) icon.innerHTML = SVG_ICONS.eye;
+        btnTogglePin.title = "Show PIN";
+      }
+    });
+  }
+
+  const btnSettingsGenPin = document.getElementById("btnSettingsGenPin");
+  if (btnSettingsGenPin) {
+    btnSettingsGenPin.addEventListener("click", () => {
+      const inp = document.getElementById("settingPinCode");
+      if (!inp) return;
+      const newPin = String(Math.floor(100000 + Math.random() * 900000));
+      inp.value = newPin;
+      updatePinBadge();
+      const span = btnSettingsGenPin.querySelector("span");
+      if (span) {
+        const orig = span.textContent;
+        span.textContent = "Rolled!";
+        setTimeout(() => { span.textContent = orig; }, 1400);
+      }
     });
   }
 
@@ -2568,35 +2775,41 @@
   });
 
   // Read response aloud again (routes to local laptop hardware or phone speaker)
-  document.getElementById("btnReplayResponse").addEventListener("click", () => {
-    const text = agentResponseText.textContent;
-    if (clientDeviceType === "phone") {
-      if (lastReplyAudio) {
-        playSpokenReply(lastReplyAudio, text);
-      } else if (text) {
-        playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
+  const btnReplay = document.getElementById("btnReplayResponse");
+  if (btnReplay) {
+    btnReplay.addEventListener("click", () => {
+      const text = agentResponseText.textContent;
+      if (clientDeviceType === "phone") {
+        if (lastReplyAudio) {
+          playSpokenReply(lastReplyAudio, text);
+        } else if (text) {
+          playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
+        }
+      } else {
+        // Laptop: trigger native server-side speaker (OnePlus Bullets / laptop output)
+        authFetch("/api/tts/speak-local", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        }).catch(() => {
+          if (lastReplyAudio) playSpokenReply(lastReplyAudio, text);
+          else if (text) playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
+        });
       }
-    } else {
-      // Laptop: trigger native server-side speaker (OnePlus Bullets / laptop output)
-      authFetch("/api/tts/speak-local", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      }).catch(() => {
-        if (lastReplyAudio) playSpokenReply(lastReplyAudio, text);
-        else if (text) playSpokenReply(`/api/tts/speak?text=${encodeURIComponent(text)}`, text);
-      });
-    }
-  });
+    });
+  }
 
   // Copy response text
-  document.getElementById("btnCopyResponse").addEventListener("click", () => {
-    const text = agentResponseText.textContent;
-    if (text) {
-      navigator.clipboard.writeText(text);
-      alert("Response copied to clipboard");
-    }
-  });
+  const btnCopy = document.getElementById("btnCopyResponse");
+  if (btnCopy) {
+    btnCopy.addEventListener("click", () => {
+      const text = agentResponseText.textContent;
+      if (text) {
+        navigator.clipboard.writeText(text);
+        alert("Response copied to clipboard");
+      }
+    });
+  }
 
   // ========================================================================
   // Live 60 FPS WebRTC Screen Mirror & Audio Controller (Zero-Trim & Pinch-Zoom)
@@ -3235,11 +3448,11 @@
       document.body.appendChild(toast);
     }
     const isYouTube = (appName && appName.toLowerCase().includes("youtube")) || (url && url.includes("youtube.com"));
-    const icon = isYouTube ? "▶️" : "🚀";
+    const icon = isYouTube ? SVG_ICONS.play : SVG_ICONS.externalLink;
     const cleanApp = appName ? appName : (isYouTube ? "YouTube Video" : "Web App");
     const btnLabel = isYouTube ? "Watch on Phone ↗" : "Open on Phone ↗";
     toast.innerHTML = `
-      <span class="web-app-toast-text">${icon} ${escapeHtml(cleanApp)} (Playing on Laptop)</span>
+      <span class="web-app-toast-text">${icon} <span>${escapeHtml(cleanApp)} (Playing on Laptop)</span></span>
       ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="web-app-toast-btn">${btnLabel}</a>` : ""}
     `;
     toast.classList.add("show");
@@ -3251,7 +3464,7 @@
     if (agentActionPill && url) {
       agentActionPill.innerHTML = `
         <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="agent-action-link">
-          ${icon} ${isYouTube ? "Watch" : "Open"} ${escapeHtml(cleanApp)} on this Phone ↗
+          ${icon} <span>${isYouTube ? "Watch" : "Open"} ${escapeHtml(cleanApp)} on this Phone ↗</span>
         </a>
       `;
       agentActionPill.style.display = "inline-flex";
@@ -3301,7 +3514,7 @@
   function checkMobileMicSecurity() {
     if (location.protocol === "http:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
       const httpsUrl = `https://${location.host}`;
-      userUtterance.innerHTML = `<span style="color: var(--accent-amber);">🔒 Phone mic requires HTTPS. <a href="${httpsUrl}" style="color: var(--accent-cyan); text-decoration: underline; font-weight: bold;">Tap here to switch to HTTPS</a> (then click Advanced → Proceed).</span>`;
+      userUtterance.innerHTML = `<span style="color: var(--accent-amber); display: inline-flex; align-items: center; gap: 4px;">${SVG_ICONS.lock} Phone mic requires HTTPS. <a href="${httpsUrl}" style="color: var(--accent-cyan); text-decoration: underline; font-weight: bold; margin-left: 4px;">Tap here to switch to HTTPS</a> (then click Advanced → Proceed).</span>`;
       userUtterance.classList.remove("is-placeholder");
       return false;
     }
@@ -3445,7 +3658,7 @@
         btnScreenDictate.classList.remove("recording");
         screenDictateLabel.textContent = "Hold to Dictate to Laptop";
       }
-      userUtterance.innerHTML = `<span style="color: var(--accent-rose);">⚠️ Mic Error: ${err.message || "Permission Denied"}. Ensure you are on HTTPS and allow microphone permissions.</span>`;
+      userUtterance.innerHTML = `<span style="color: var(--accent-rose); display: inline-flex; align-items: center; gap: 4px;">${SVG_ICONS.alertTriangle} Mic Error: ${escapeHtml(err.message || "Permission Denied")}. Ensure you are on HTTPS and allow microphone permissions.</span>`;
       userUtterance.classList.remove("is-placeholder");
     }
   }
@@ -3512,12 +3725,38 @@
   // ========================================================================
   // Mobile Connect & QR Code Modal (Local Wi-Fi & Remote Anywhere)
   // ========================================================================
+  function renderQrCode(canvasContainer, imgFallback, url) {
+    if (!url) return;
+    if (window.QRCode && canvasContainer) {
+      try {
+        canvasContainer.innerHTML = "";
+        new QRCode(canvasContainer, {
+          text: url,
+          width: 180,
+          height: 180,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+        canvasContainer.style.display = "flex";
+        if (imgFallback) imgFallback.style.display = "none";
+        return;
+      } catch (err) {
+        console.warn("[QRCode Local Render Error, using fallback]", err);
+      }
+    }
+    // Fallback to img if QRCode library is not loaded or throws
+    if (imgFallback) {
+      imgFallback.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+      imgFallback.style.display = "block";
+      if (canvasContainer) canvasContainer.style.display = "none";
+    }
+  }
+
   function updateMobileConnectInfo(url) {
     if (!url) return;
     if (mobileUrlDisplay) mobileUrlDisplay.textContent = url;
-    if (mobileQrImg) {
-      mobileQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
-    }
+    renderQrCode(mobileQrCanvas, mobileQrImg, url);
   }
 
   function updateTunnelUI(tunnel) {
@@ -3538,22 +3777,30 @@
       if (remoteInactiveContent) remoteInactiveContent.style.display = "none";
 
       const tokenPart = currentAuthToken ? `?token=${encodeURIComponent(currentAuthToken)}` : "";
-      const remoteAuthUrl = tunnel.authenticated_url || `${tunnel.public_url}${tokenPart}`;
-      if (remoteUrlDisplay) remoteUrlDisplay.textContent = remoteAuthUrl;
-      if (remoteQrImg) {
-        remoteQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(remoteAuthUrl)}`;
+      let remoteAuthUrl = tunnel.authenticated_url || tunnel.public_url;
+      if (remoteAuthUrl && !remoteAuthUrl.includes("token=") && currentAuthToken) {
+        remoteAuthUrl += (remoteAuthUrl.includes("?") ? "&" : "?") + `token=${encodeURIComponent(currentAuthToken)}`;
       }
+      if (remoteUrlDisplay) remoteUrlDisplay.textContent = remoteAuthUrl;
+      renderQrCode(remoteQrCanvas, remoteQrImg, remoteAuthUrl);
     } else if (tunnel.status === "starting" || tunnel.starting) {
       remoteTunnelStatusPill.className = "tunnel-status-pill starting";
       statusLabel.textContent = "Tunnel: Connecting...";
       if (remoteTunnelSubtext) remoteTunnelSubtext.textContent = "Establishing Cloudflare edge connection...";
       if (btnToggleTunnel) {
-        btnToggleTunnel.textContent = "Starting...";
+        btnToggleTunnel.textContent = "Connecting...";
         btnToggleTunnel.className = "btn-secondary";
         btnToggleTunnel.disabled = true;
       }
       if (remoteActiveContent) remoteActiveContent.style.display = "none";
-      if (remoteInactiveContent) remoteInactiveContent.style.display = "flex";
+      if (remoteInactiveContent) {
+        remoteInactiveContent.style.display = "flex";
+        const title = remoteInactiveContent.querySelector(".inactive-title");
+        const desc = remoteInactiveContent.querySelector(".inactive-desc");
+        if (title) title.textContent = "Connecting to Cloudflare...";
+        if (desc) desc.textContent = "Establishing secure encrypted tunnel. Your QR code will appear here in just a moment...";
+        if (btnStartTunnelFromCard) btnStartTunnelFromCard.style.display = "none";
+      }
     } else {
       remoteTunnelStatusPill.className = "tunnel-status-pill idle";
       statusLabel.textContent = "Tunnel: Inactive";
@@ -3566,7 +3813,17 @@
         btnToggleTunnel.disabled = false;
       }
       if (remoteActiveContent) remoteActiveContent.style.display = "none";
-      if (remoteInactiveContent) remoteInactiveContent.style.display = "flex";
+      if (remoteInactiveContent) {
+        remoteInactiveContent.style.display = "flex";
+        const title = remoteInactiveContent.querySelector(".inactive-title");
+        const desc = remoteInactiveContent.querySelector(".inactive-desc");
+        if (title) title.textContent = tunnel.error ? "Connection Notice" : "Cellular Remote Access";
+        if (desc) desc.textContent = tunnel.error ? `${tunnel.error}. Click below to retry.` : "Launch a free, encrypted Cloudflare tunnel to talk to your laptop and control your screen from outside home. No router port forwarding required.";
+        if (btnStartTunnelFromCard) {
+          btnStartTunnelFromCard.style.display = "inline-flex";
+          btnStartTunnelFromCard.textContent = tunnel.error ? "Retry Remote Tunnel" : "Start Remote Tunnel";
+        }
+      }
     }
   }
 
@@ -3669,6 +3926,12 @@
         console.error("[tunnel toggle error]", err);
         fetchTunnelStatus();
       }
+    });
+  }
+
+  if (btnStartTunnelFromCard && btnToggleTunnel) {
+    btnStartTunnelFromCard.addEventListener("click", () => {
+      btnToggleTunnel.click();
     });
   }
 
@@ -4022,6 +4285,121 @@
     }
     connectWebSocket();
   }
+
+  // Initialize Window Controls & Desktop Integration
+  function initElectronDesktop() {
+    const windowControls = document.getElementById("windowControls");
+    const desktopPill = document.getElementById("desktopPill");
+    const btnWinMin = document.getElementById("btnWinMin");
+    const btnWinMax = document.getElementById("btnWinMax");
+    const btnWinClose = document.getElementById("btnWinClose");
+    const btnWinPin = document.getElementById("btnWinPin");
+    const winMaxIcon = document.querySelector(".win-max-icon");
+    const winRestoreIcon = document.querySelector(".win-restore-icon");
+
+    if (window.electronAPI) {
+      document.body.classList.add("is-electron");
+      if (windowControls) windowControls.style.display = "flex";
+      if (desktopPill) desktopPill.style.display = "none";
+
+      if (btnWinMin) {
+        btnWinMin.addEventListener("click", () => window.electronAPI.minimize());
+      }
+      if (btnWinMax) {
+        btnWinMax.addEventListener("click", () => window.electronAPI.maximize());
+      }
+      if (btnWinClose) {
+        btnWinClose.addEventListener("click", () => window.electronAPI.close());
+      }
+      if (btnWinPin) {
+        btnWinPin.addEventListener("click", async () => {
+          const pinned = await window.electronAPI.togglePin();
+          btnWinPin.classList.toggle("active", !!pinned);
+          showToast(pinned ? "Always on Top: Enabled" : "Always on Top: Disabled", "info");
+        });
+      }
+
+      if (window.electronAPI.onMaximizeChange) {
+        window.electronAPI.onMaximizeChange((isMax) => {
+          document.body.classList.toggle("is-maximized", !!isMax);
+          if (btnWinMax) {
+            btnWinMax.classList.toggle("is-maximized", !!isMax);
+            btnWinMax.setAttribute("title", isMax ? "Restore Window" : "Maximize Window");
+          }
+          if (winMaxIcon) winMaxIcon.style.display = isMax ? "none" : "block";
+          if (winRestoreIcon) winRestoreIcon.style.display = isMax ? "block" : "none";
+        });
+      }
+
+      // Global Push-to-Talk triggered from any app in Windows
+      if (window.electronAPI.onGlobalPTT) {
+        window.electronAPI.onGlobalPTT(() => {
+          console.log("[Desktop] Global Push-to-Talk shortcut triggered.");
+          if (btnPushToTalk) {
+            btnPushToTalk.click();
+          }
+        });
+      }
+
+      // Global Mic Mute triggered from anywhere
+      if (window.electronAPI.onGlobalMute) {
+        window.electronAPI.onGlobalMute(() => {
+          console.log("[Desktop] Global Mute shortcut triggered.");
+          if (btnToggleContinuous) {
+            btnToggleContinuous.click();
+          }
+        });
+      }
+
+      console.log("[Desktop] ECOWHISPER Electron bridge initialized.");
+    } else {
+      // Browser mode: Make minimize and maximize buttons visible and functional in the browser UI
+      if (windowControls) windowControls.style.display = "flex";
+      if (btnWinPin) btnWinPin.style.display = "none";
+
+      if (btnWinMin) {
+        btnWinMin.title = "Minimize / Compact View";
+        btnWinMin.addEventListener("click", () => {
+          document.body.classList.toggle("is-compact-stage");
+          showToast(document.body.classList.contains("is-compact-stage") ? "Compact view enabled" : "Standard stage view", "info");
+        });
+      }
+
+      if (btnWinMax) {
+        btnWinMax.title = "Maximize / Fullscreen (F11)";
+        btnWinMax.addEventListener("click", () => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+            if (winMaxIcon) winMaxIcon.style.display = "none";
+            if (winRestoreIcon) winRestoreIcon.style.display = "block";
+          } else {
+            document.exitFullscreen().catch(() => {});
+            if (winMaxIcon) winMaxIcon.style.display = "block";
+            if (winRestoreIcon) winRestoreIcon.style.display = "none";
+          }
+        });
+
+        document.addEventListener("fullscreenchange", () => {
+          const isFull = !!document.fullscreenElement;
+          if (winMaxIcon) winMaxIcon.style.display = isFull ? "none" : "block";
+          if (winRestoreIcon) winRestoreIcon.style.display = isFull ? "block" : "none";
+        });
+      }
+
+      if (btnWinClose) {
+        btnWinClose.title = "Stop / Reset Voice Assistant";
+        btnWinClose.addEventListener("click", () => {
+          if (btnToggleContinuous && btnToggleContinuous.classList.contains("active")) {
+            btnToggleContinuous.click();
+          }
+          showToast("ECOWHISPER Standby", "info");
+        });
+      }
+    }
+  }
+
+  // Initialize Desktop bridge
+  initElectronDesktop();
 
   // Prime model and settings data on initial page load
   loadSettingsData();
